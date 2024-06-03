@@ -8,4 +8,10 @@ chmod +x llm-codeinject
 
 # Add the binary to the PATH (Optional: Adjust the path as per your setup)
 echo "export PATH=\$PATH:$(pwd)" >> ~/.bashrc
+
+# For zsh, also add it to ~/.zshrc
+echo "export PATH=\$PATH:$(pwd)" >> ~/.zshrc
+
+# Source both .bashrc and .zshrc
 source ~/.bashrc
+source ~/.zshrc
