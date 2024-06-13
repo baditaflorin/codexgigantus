@@ -41,3 +41,5 @@ llm-codeinject -dir social-network-frontend -ignore-file package-lock.json -igno
 #backend
 llm-codeinject -dir social-network-backend -ignore-file package-lock.json,auth_test.go -ignore-dir tests -ignore-ext sum,mod -output-file backend.txt -save  #-show-size
 
+###
+llm-codeinject -debug -dir .  -ignore-file package-lock.json,llm-codeinject,frontend.txt -ignore-dir cmd,pkg,.idea,.git,node_modules,__previewjs__ -ignore-ext svg,png,ico,md -output-file frontend.txt -save  #-show-size
