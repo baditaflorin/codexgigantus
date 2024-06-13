@@ -32,3 +32,12 @@ LLM-CodeInject is a command-line tool written in Go that processes files in a sp
 
 ```sh
 ./llm-codeinject --directory /path/to/dir --ignore-dir logs,temp --ignore-ext log,tmp --include-ext txt,md
+
+
+Internal Use Examples
+#frontend 
+llm-codeinject -dir social-network-frontend -ignore-file package-lock.json -ignore-dir node_modules,__previewjs__ -ignore-ext svg,png,ico,md -output-file frontend.txt -save  #-show-size
+
+#backend
+llm-codeinject -dir social-network-backend -ignore-file package-lock.json,auth_test.go -ignore-dir tests -ignore-ext sum,mod -output-file backend.txt -save  #-show-size
+

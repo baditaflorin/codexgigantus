@@ -11,17 +11,18 @@ import (
 )
 
 var (
-	dirs        string
-	ignoreFiles string
-	ignoreDirs  string
-	ignoreExts  string
-	recursive   bool
-	debug       bool
-	save        bool
-	outputFile  string
-	showSize    bool
-	output      strings.Builder
-	showFuncs   bool
+	dirs          string
+	ignoreFiles   string
+	ignoreDirs    string
+	ignoreExts    string
+	recursive     bool
+	debug         bool
+	save          bool
+	outputFile    string
+	showSize      bool
+	output        strings.Builder
+	showFuncs     bool
+	includedFiles []string
 )
 
 func init() {
@@ -54,14 +55,19 @@ func main() {
 		return
 	}
 
-	for _, dir := range strings.Split(dirs, ",") {
-		err := filepath.Walk(dir, createWalkFunc(ignoreFiles, ignoreDirs, ignoreExts))
-		if err != nil {
-			fmt.Printf("Error walking the path %q: %v\n", dir, err)
+	includedFiles = gatherIncludedFiles(strings.Split(dirs, ","), ignoreFiles, ignoreDirs, ignoreExts)
+
+	if debug {
+		fmt.Println("Included files:")
+		for _, file := range includedFiles {
+			fmt.Println(file)
 		}
 	}
 
 	if save {
+		for _, file := range includedFiles {
+			addFileContentToOutput(file)
+		}
 		err := saveOutput(outputFile, output.String())
 		if err != nil {
 			fmt.Printf("Error saving output to file %q: %v\n", outputFile, err)
@@ -69,19 +75,76 @@ func main() {
 	}
 
 	if showSize {
-		displaySize(output.String())
+		displaySize(includedFiles)
 	} else {
 		fmt.Print(output.String())
 	}
 }
 
 func printDebugInfo() {
-	fmt.Println("Debug mode enabled")
+	fmt.Println("Debug mode enabled v_0.1")
 	fmt.Printf("Directories: %s\n", dirs)
 	fmt.Printf("Ignore files: %s\n", ignoreFiles)
 	fmt.Printf("Ignore directories: %s\n", ignoreDirs)
 	fmt.Printf("Ignore extensions: %s\n", ignoreExts)
 	fmt.Printf("Recursive: %v\n", recursive)
+}
+
+func shouldSkipDir(path string, ignoreDirs string) bool {
+	ignoreDirsList := strings.Split(ignoreDirs, ",")
+	for _, dir := range ignoreDirsList {
+		if strings.Contains(filepath.ToSlash(path), filepath.ToSlash(dir)) {
+			return true
+		}
+	}
+	return false
+}
+
+func shouldIncludeFile(path string, info os.FileInfo, ignoreFiles, ignoreExts string) bool {
+	ignoreFilesList := strings.Split(ignoreFiles, ",")
+	ignoreExtsList := strings.Split(ignoreExts, ",")
+	if contains(ignoreFilesList, info.Name()) {
+		return false
+	}
+	if containsExt(ignoreExtsList, filepath.Ext(info.Name())) {
+		return false
+	}
+	return true
+}
+
+func gatherIncludedFiles(dirs []string, ignoreFiles, ignoreDirs, ignoreExts string) []string {
+	var files []string
+	for _, dir := range dirs {
+		_ = filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return handleError(err, path)
+			}
+
+			if info.IsDir() {
+				if shouldSkipDir(path, ignoreDirs) {
+					if debug {
+						fmt.Printf("Skipping directory: %s\n", path)
+					}
+					return filepath.SkipDir
+				}
+				return nil
+			}
+
+			if shouldIncludeFile(path, info, ignoreFiles, ignoreExts) {
+				if debug {
+					fmt.Printf("Including file: %s\n", path)
+				}
+				files = append(files, path)
+			} else {
+				if debug {
+					fmt.Printf("Excluding file: %s\n", path)
+				}
+			}
+
+			return nil
+		})
+	}
+	return files
 }
 
 func showFunctions(path string, info os.FileInfo, err error) error {
@@ -141,11 +204,13 @@ func handleError(err error, path string) error {
 
 func handleDirectory(path string, info os.FileInfo, ignoreDirs string) error {
 	ignoreDirsList := strings.Split(ignoreDirs, ",")
-	if contains(ignoreDirsList, info.Name()) {
-		if debug {
-			fmt.Printf("Skipping directory: %s\n", path)
+	for _, dir := range ignoreDirsList {
+		if strings.Contains(filepath.ToSlash(path), filepath.ToSlash(dir)) {
+			if debug {
+				fmt.Printf("Skipping directory: %s\n", path)
+			}
+			return filepath.SkipDir
 		}
-		return filepath.SkipDir
 	}
 	return nil
 }
@@ -202,13 +267,20 @@ func saveOutput(filename, data string) error {
 	return ioutil.WriteFile(filename, []byte(data), 0644)
 }
 
-func displaySize(data string) {
-	size := len(data)
-	if size < 1024 {
-		fmt.Printf("Output size: %d bytes\n", size)
-	} else if size < 1024*1024 {
-		fmt.Printf("Output size: %.2f KB\n", float64(size)/1024)
+func displaySize(files []string) {
+	var totalSize int64
+	for _, file := range files {
+		info, err := os.Stat(file)
+		if err == nil {
+			totalSize += info.Size()
+		}
+	}
+
+	if totalSize < 1024 {
+		fmt.Printf("Output size: %d bytes\n", totalSize)
+	} else if totalSize < 1024*1024 {
+		fmt.Printf("Output size: %.2f KB\n", float64(totalSize)/1024)
 	} else {
-		fmt.Printf("Output size: %.2f MB\n", float64(size)/(1024*1024))
+		fmt.Printf("Output size: %.2f MB\n", float64(totalSize)/(1024*1024))
 	}
 }

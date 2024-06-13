@@ -24,10 +24,13 @@ func FilterFiles(root string, ignoreDirs []string, ignoreExts []string, includeE
 			return err
 		}
 
-		// Check if it's a directory we need to ignore
+		// Check if the path contains any directory we need to ignore
 		for _, dir := range ignoreDirs {
-			if info.IsDir() && strings.Contains(path, dir) {
-				return filepath.SkipDir
+			if strings.Contains(filepath.ToSlash(path), filepath.ToSlash(dir)) {
+				if info.IsDir() {
+					return filepath.SkipDir
+				}
+				return nil
 			}
 		}
 
