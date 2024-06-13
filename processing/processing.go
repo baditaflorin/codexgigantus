@@ -8,15 +8,19 @@ import (
 	"strings"
 )
 
-func ProcessFiles(files []string, output *strings.Builder) {
+func ProcessFiles(files []string, output *strings.Builder, processFunc func(string) ([]byte, error)) {
 	for _, file := range files {
-		content, err := ioutil.ReadFile(file)
+		content, err := processFunc(file)
 		if err != nil {
-			fmt.Printf("Error reading file %s: %v\n", file, err)
+			fmt.Printf("Error processing file %s: %v\n", file, err)
 			continue
 		}
 		output.WriteString(fmt.Sprintf("________\nPath: %s\nContent:\n%s\n", file, content))
 	}
+}
+
+func DefaultProcessFunc(file string) ([]byte, error) {
+	return ioutil.ReadFile(file)
 }
 
 func ShowFunctions(path string, info os.FileInfo, err error) error {

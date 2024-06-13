@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	"llm-codeinject/config"
@@ -11,27 +10,43 @@ import (
 	"llm-codeinject/utils"
 )
 
-var output strings.Builder
-
 func main() {
-	cfg := config.NewConfig()
-	cfg.ParseFlags()
+	cfg := config.ParseConfig()
 
 	if cfg.Debug {
-		printDebugInfo(cfg)
+		utils.PrintDebugInfo(cfg)
 	}
+
+	output := processFiles(cfg, filehandling.GatherIncludedFiles, processing.ProcessFiles, processing.DefaultProcessFunc)
+
+	if cfg.Save {
+		if err := utils.SaveOutput(cfg.OutputFile, output.String()); err != nil {
+			fmt.Printf("Error saving output to file %q: %v\n", cfg.OutputFile, err)
+		}
+	}
+
+	if cfg.ShowSize {
+		if err := utils.DisplaySize(strings.Split(output.String(), "\n")); err != nil {
+			fmt.Printf("Error displaying size: %v\n", err)
+		}
+	} else {
+		fmt.Print(output.String())
+	}
+}
+
+func processFiles(cfg *config.Config, gatherFunc func(string, string, string, string, bool) ([]string, error), processFunc func([]string, *strings.Builder, func(string) ([]byte, error)), fileProcessFunc func(string) ([]byte, error)) strings.Builder {
+	var output strings.Builder
 
 	if cfg.ShowFuncs {
-		for _, dir := range strings.Split(cfg.Dirs, ",") {
-			err := filepath.Walk(dir, processing.ShowFunctions)
-			if err != nil {
-				fmt.Printf("Error walking the path %q: %v\n", dir, err)
-			}
-		}
-		return
+		filehandling.ProcessDirectories(cfg.Dirs, processing.ShowFunctions, cfg)
+		return output
 	}
 
-	includedFiles := filehandling.GatherIncludedFiles(cfg.Dirs, cfg.IgnoreFiles, cfg.IgnoreDirs, cfg.IgnoreExts, cfg.Debug)
+	includedFiles, err := gatherFunc(cfg.Dirs, cfg.IgnoreFiles, cfg.IgnoreDirs, cfg.IgnoreExts, cfg.Debug)
+	if err != nil {
+		fmt.Printf("Error gathering included files: %v\n", err)
+		return output
+	}
 
 	if cfg.Debug {
 		fmt.Println("Included files:")
@@ -40,26 +55,6 @@ func main() {
 		}
 	}
 
-	if cfg.Save {
-		processing.ProcessFiles(includedFiles, &output)
-		err := utils.SaveOutput(cfg.OutputFile, output.String())
-		if err != nil {
-			fmt.Printf("Error saving output to file %q: %v\n", cfg.OutputFile, err)
-		}
-	}
-
-	if cfg.ShowSize {
-		utils.DisplaySize(includedFiles)
-	} else {
-		fmt.Print(output.String())
-	}
-}
-
-func printDebugInfo(cfg *config.Config) {
-	fmt.Println("Debug mode enabled v_0.1")
-	fmt.Printf("Directories: %s\n", cfg.Dirs)
-	fmt.Printf("Ignore files: %s\n", cfg.IgnoreFiles)
-	fmt.Printf("Ignore directories: %s\n", cfg.IgnoreDirs)
-	fmt.Printf("Ignore extensions: %s\n", cfg.IgnoreExts)
-	fmt.Printf("Recursive: %v\n", cfg.Recursive)
+	processFunc(includedFiles, &output, fileProcessFunc)
+	return output
 }

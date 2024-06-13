@@ -1,6 +1,7 @@
 package filehandling
 
 import (
+	"llm-codeinject/config"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,31 +12,48 @@ func ValidateDirectory(dir string) bool {
 	return err == nil && info.IsDir()
 }
 
-func GatherIncludedFiles(dirs, ignoreFiles, ignoreDirs, ignoreExts string, debug bool) []string {
+func GatherIncludedFiles(dirs, ignoreFiles, ignoreDirs, ignoreExts string, debug bool) ([]string, error) {
 	var files []string
-	for _, dir := range strings.Split(dirs, ",") {
-		_ = filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-			if err != nil {
-				return err
-			}
-			if info.IsDir() && shouldSkipDir(path, ignoreDirs) {
-				if debug {
-					println("Skipping directory:", path)
-				}
-				return filepath.SkipDir
-			}
-			if !info.IsDir() && shouldIncludeFile(path, info, ignoreFiles, ignoreExts) {
-				if debug {
-					println("Including file:", path)
-				}
-				files = append(files, path)
-			} else if debug {
-				println("Excluding file:", path)
-			}
-			return nil
-		})
+	dirList := strings.Split(dirs, ",")
+	for _, dir := range dirList {
+		if err := filepath.Walk(dir, createWalkFunc(ignoreFiles, ignoreDirs, ignoreExts, &files, debug)); err != nil {
+			return nil, err
+		}
 	}
-	return files
+	return files, nil
+}
+
+func ProcessDirectories(dirs string, processFunc filepath.WalkFunc, cfg *config.Config) error {
+	dirList := strings.Split(dirs, ",")
+	for _, dir := range dirList {
+		if err := filepath.Walk(dir, processFunc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func createWalkFunc(ignoreFiles, ignoreDirs, ignoreExts string, files *[]string, debug bool) filepath.WalkFunc {
+	return func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() && shouldSkipDir(path, ignoreDirs) {
+			if debug {
+				println("Skipping directory:", path)
+			}
+			return filepath.SkipDir
+		}
+		if !info.IsDir() && shouldIncludeFile(path, info, ignoreFiles, ignoreExts) {
+			if debug {
+				println("Including file:", path)
+			}
+			*files = append(*files, path)
+		} else if debug {
+			println("Excluding file:", path)
+		}
+		return nil
+	}
 }
 
 func shouldSkipDir(path, ignoreDirs string) bool {

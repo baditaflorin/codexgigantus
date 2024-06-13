@@ -32,3 +32,9 @@ func (c *Config) ParseFlags() {
 	flag.BoolVar(&c.ShowFuncs, "show-funcs", false, "Show only functions and their parameters")
 	flag.Parse()
 }
+
+func ParseConfig() *Config {
+	cfg := NewConfig()
+	cfg.ParseFlags()
+	return cfg
+}
