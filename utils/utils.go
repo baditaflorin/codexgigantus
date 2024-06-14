@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"llm-codeinject/config"
+	"github.com/baditaflorin/codexgigantus/config"
 )
 
 func SaveOutput(filename, data string) error {
