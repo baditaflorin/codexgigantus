@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"strings"
 
-	"llm-codeinject/config"
-	"llm-codeinject/filehandling"
-	"llm-codeinject/processing"
-	"llm-codeinject/utils"
+	"github.com/baditaflorin/codexgigantus/config"
+	"github.com/baditaflorin/codexgigantus/filehandling"
+	"github.com/baditaflorin/codexgigantus/processing"
+	"github.com/baditaflorin/codexgigantus/utils"
+
 )
 
 func main() {

@@ -1,10 +1,11 @@
 package filehandling
 
 import (
-	"llm-codeinject/config"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/baditaflorin/codexgigantus/config"
 )
 
 func ValidateDirectory(dir string) bool {
