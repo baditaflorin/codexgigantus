@@ -1,6 +1,6 @@
-# LLM-FileProcessor
+# CodexGigantus
 
-LLM-CodeInject is a command-line tool written in Go that processes files in a specified directory based on given criteria. It's designed to integrate seamlessly with Language Learning Models (LLMs) for extracting smaller code components.
+CodexGigantus is a command-line tool written in Go that processes files in a specified directory based on given criteria. It's designed to integrate seamlessly with Language Learning Models (LLMs) for extracting smaller code components.
 
 ## Features
 - Specify root directory
@@ -17,11 +17,11 @@ LLM-CodeInject is a command-line tool written in Go that processes files in a sp
 ### Steps
 1. Clone the repository:
     ```sh
-    git clone https://github.com/yourusername/llm-fileprocessor.git
+    git clone https://github.com/yourusername/codexgigantus.git
     ```
 2. Navigate to the project directory:
     ```sh
-    cd llm-codeinject
+    cd codexgigantus
     ```
 3. Build the project:
     ```sh
@@ -32,7 +32,7 @@ LLM-CodeInject is a command-line tool written in Go that processes files in a sp
 
 ### Basic Command
 ```sh
-./llm-codeinject --directory /path/to/dir --ignore-dir logs,temp --ignore-ext log,tmp --include-ext txt,md
+./codexgigantus --directory /path/to/dir --ignore-dir logs,temp --ignore-ext log,tmp --include-ext txt,md
 ```
 
 ### Flags Explanation
@@ -43,26 +43,26 @@ LLM-CodeInject is a command-line tool written in Go that processes files in a sp
 - `--include-ext` or `-include-ext`: Comma-separated list of file extensions to include.
 - `--recursive` or `-recursive`: Recursively search directories (default: true).
 - `--debug` or `-debug`: Enable debug output.
-- `--save` or `-save`: Save the output to a file.
-- `--output-file` or `-output-file`: Specify the output file name (default: output.txt).
-- `--show-size` or `-show-size`: Show the size of the result in bytes.
-- `--show-funcs` or `-show-funcs`: Show only functions and their parameters.
+- `--save`: Save the output to a file.
+- `--output-file`: Specify the output file name (default: output.txt).
+- `--show-size`: Show the size of the result in bytes.
+- `--show-funcs`: Show only functions and their parameters.
 
 ### Internal Use Examples
 
 #### Frontend
 ```sh
-llm-codeinject -dir social-network-frontend -ignore-file package-lock.json -ignore-dir node_modules,__previewjs__ -ignore-ext svg,png,ico,md -output-file frontend.txt -save
+codexgigantus -dir social-network-frontend -ignore-file package-lock.json -ignore-dir node_modules,__previewjs__ -ignore-ext svg,png,ico,md -output-file frontend.txt -save
 ```
 
 #### Backend
 ```sh
-llm-codeinject -dir social-network-backend -ignore-file package-lock.json,auth_test.go -ignore-dir tests -ignore-ext sum,mod -output-file backend.txt -save
+codexgigantus -dir social-network-backend -ignore-file package-lock.json,auth_test.go -ignore-dir tests -ignore-ext sum,mod -output-file backend.txt -save
 ```
 
 #### Debugging
 ```sh
-llm-codeinject -debug -dir . -ignore-file package-lock.json,llm-codeinject,frontend.txt -ignore-dir cmd,pkg,.idea,.git,node_modules,__previewjs__ -ignore-ext svg,png,ico,md -output-file frontend.txt -save
+codexgigantus -debug -dir . -ignore-file package-lock.json,codexgigantus,frontend.txt -ignore-dir cmd,pkg,.idea,.git,node_modules,__previewjs__ -ignore-ext svg,png,ico,md -output-file frontend.txt -save
 ```
 
 ## Development
