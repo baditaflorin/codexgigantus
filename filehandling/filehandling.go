@@ -13,6 +13,17 @@ func ValidateDirectory(dir string) bool {
 	return err == nil && info.IsDir()
 }
 
+func GatherIncludedFiles(dirs, ignoreFiles, ignoreDirs, ignoreExts, ignoreSuffixes string, debug bool) ([]string, error) {
+	var files []string
+	dirList := strings.Split(dirs, ",")
+	for _, dir := range dirList {
+		if err := filepath.Walk(dir, createWalkFunc(ignoreFiles, ignoreDirs, ignoreExts, ignoreSuffixes, &files, debug)); err != nil {
+			return nil, err
+		}
+	}
+	return files, nil
+}
+
 func ProcessDirectories(dirs string, processFunc filepath.WalkFunc, cfg *config.Config) error {
 	dirList := strings.Split(dirs, ",")
 	for _, dir := range dirList {
@@ -23,35 +34,36 @@ func ProcessDirectories(dirs string, processFunc filepath.WalkFunc, cfg *config.
 	return nil
 }
 
-
-func GatherIncludedFiles(cfg *config.Config) ([]string, error) {
-	var files []string
-	dirList := strings.Split(cfg.Dirs, ",")
-	for _, dir := range dirList {
-		if err := filepath.Walk(dir, createWalkFunc(cfg, &files)); err != nil {
-			return nil, err
-		}
-	}
-	return files, nil
-}
-
-func createWalkFunc(cfg *config.Config, files *[]string) filepath.WalkFunc {
+func createWalkFunc(ignoreFiles, ignoreDirs, ignoreExts, ignoreSuffixes string, files *[]string, debug bool) filepath.WalkFunc {
 	return func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
-		if info.IsDir() && shouldSkipDir(path, cfg.IgnoreDirs) {
-			if cfg.Debug {
+
+		// Always include the file if no ignore flags are set
+		if ignoreFiles == "" && ignoreDirs == "" && ignoreExts == "" && ignoreSuffixes == "" {
+			if !info.IsDir() {
+				if debug {
+					println("Including file:", path)
+				}
+				*files = append(*files, path)
+			}
+			return nil
+		}
+
+		if info.IsDir() && shouldSkipDir(path, ignoreDirs) {
+			if debug {
 				println("Skipping directory:", path)
 			}
 			return filepath.SkipDir
 		}
-		if !info.IsDir() && shouldIncludeFile(path, info, cfg) {
-			if cfg.Debug {
+
+		if !info.IsDir() && shouldIncludeFile(path, info, ignoreFiles, ignoreExts, ignoreSuffixes) {
+			if debug {
 				println("Including file:", path)
 			}
 			*files = append(*files, path)
-		} else if cfg.Debug {
+		} else if debug {
 			println("Excluding file:", path)
 		}
 		return nil
@@ -61,17 +73,33 @@ func createWalkFunc(cfg *config.Config, files *[]string) filepath.WalkFunc {
 func shouldSkipDir(path, ignoreDirs string) bool {
 	ignoreDirsList := strings.Split(ignoreDirs, ",")
 	for _, dir := range ignoreDirsList {
-		if strings.Contains(filepath.ToSlash(path), filepath.ToSlash(dir)) {
+		if filepath.Base(path) == dir {
 			return true
 		}
 	}
 	return false
 }
 
-func shouldIncludeFile(path string, info os.FileInfo, cfg *config.Config) bool {
-	return !contains(strings.Split(cfg.IgnoreFiles, ","), info.Name()) &&
-		!containsExt(strings.Split(cfg.IgnoreExts, ","), filepath.Ext(info.Name())) &&
-		!containsSuffix(strings.Split(cfg.IgnoreSuffix, ","), info.Name())
+func shouldIncludeFile(path string, info os.FileInfo, ignoreFiles, ignoreExts, ignoreSuffixes string) bool {
+	// If no ignore flags are set, include all files
+	if ignoreFiles == "" && ignoreExts == "" && ignoreSuffixes == "" {
+		return true
+	}
+
+	ignoreFilesList := strings.Split(ignoreFiles, ",")
+	ignoreExtsList := strings.Split(ignoreExts, ",")
+	ignoreSuffixesList := strings.Split(ignoreSuffixes, ",")
+
+	if contains(ignoreFilesList, info.Name()) {
+		return false
+	}
+	if containsExt(ignoreExtsList, filepath.Ext(info.Name())) {
+		return false
+	}
+	if containsSuffix(ignoreSuffixesList, info.Name()) {
+		return false
+	}
+	return true
 }
 
 func contains(list []string, item string) bool {
