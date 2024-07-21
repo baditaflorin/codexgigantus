@@ -3,17 +3,17 @@ package config
 import "flag"
 
 type Config struct {
-	Dirs        string
-	IgnoreFiles string
-	IgnoreDirs  string
-	IgnoreExts  string
+	Dirs         string
+	IgnoreFiles  string
+	IgnoreDirs   string
+	IgnoreExts   string
 	IgnoreSuffix string
-	Recursive   bool
-	Debug       bool
-	Save        bool
-	OutputFile  string
-	ShowSize    bool
-	ShowFuncs   bool
+	Recursive    bool
+	Debug        bool
+	Save         bool
+	OutputFile   string
+	ShowSize     bool
+	ShowFuncs    bool
 }
 
 func NewConfig() *Config {
