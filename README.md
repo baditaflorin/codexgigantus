@@ -32,15 +32,20 @@ CodexGigantus is a command-line tool written in Go that processes files in a spe
 
 ### Basic Command
 ```sh
-./codexgigantus --directory /path/to/dir --ignore-dir logs,temp --ignore-ext log,tmp --include-ext txt,md
+./codexgigantus -dir /path/to/dir --ignore-dir logs,temp --ignore-ext log,tmp --include-ext txt,md
 ```
 
+### How to test it on this repo
+```shell
+ ./CodexGigantus -dir . --ignore-file CodexGigantus,.DS_Store,qodana.yaml --ignore-ext txt --ignore-dir .git,.idea --save --output-file chatgpt_code.txt
+```
 ### Flags Explanation
 - `--dir` or `-dir`: Comma-separated list of directories to search (default: current directory).
 - `--ignore-file` or `-ignore-file`: Comma-separated list of files to ignore.
 - `--ignore-dir` or `-ignore-dir`: Comma-separated list of directories to ignore.
 - `--ignore-ext` or `-ignore-ext`: Comma-separated list of file extensions to ignore.
 - `--include-ext` or `-include-ext`: Comma-separated list of file extensions to include.
+- `--ignore-suffix` or `-ignore-suffix`: Comma-separated list of file suffixes to ignore.
 - `--recursive` or `-recursive`: Recursively search directories (default: true).
 - `--debug` or `-debug`: Enable debug output.
 - `--save`: Save the output to a file.

@@ -7,6 +7,7 @@ type Config struct {
 	IgnoreFiles string
 	IgnoreDirs  string
 	IgnoreExts  string
+	IgnoreSuffix string
 	Recursive   bool
 	Debug       bool
 	Save        bool
@@ -24,6 +25,7 @@ func (c *Config) ParseFlags() {
 	flag.StringVar(&c.IgnoreFiles, "ignore-file", "", "Comma-separated list of files to ignore")
 	flag.StringVar(&c.IgnoreDirs, "ignore-dir", "", "Comma-separated list of directories to ignore")
 	flag.StringVar(&c.IgnoreExts, "ignore-ext", "", "Comma-separated list of file extensions to ignore")
+	flag.StringVar(&c.IgnoreSuffix, "ignore-suffix", "", "Comma-separated list of file suffixes to ignore")
 	flag.BoolVar(&c.Recursive, "recursive", true, "Recursively search directories")
 	flag.BoolVar(&c.Debug, "debug", false, "Enable debug output")
 	flag.BoolVar(&c.Save, "save", false, "Save the output to a file")

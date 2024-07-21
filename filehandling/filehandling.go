@@ -13,11 +13,11 @@ func ValidateDirectory(dir string) bool {
 	return err == nil && info.IsDir()
 }
 
-func GatherIncludedFiles(dirs, ignoreFiles, ignoreDirs, ignoreExts string, debug bool) ([]string, error) {
+func GatherIncludedFiles(dirs, ignoreFiles, ignoreDirs, ignoreExts, ignoreSuffix string, debug bool) ([]string, error) {
 	var files []string
 	dirList := strings.Split(dirs, ",")
 	for _, dir := range dirList {
-		if err := filepath.Walk(dir, createWalkFunc(ignoreFiles, ignoreDirs, ignoreExts, &files, debug)); err != nil {
+		if err := filepath.Walk(dir, createWalkFunc(ignoreFiles, ignoreDirs, ignoreExts, ignoreSuffix, &files, debug)); err != nil {
 			return nil, err
 		}
 	}
@@ -34,7 +34,7 @@ func ProcessDirectories(dirs string, processFunc filepath.WalkFunc, cfg *config.
 	return nil
 }
 
-func createWalkFunc(ignoreFiles, ignoreDirs, ignoreExts string, files *[]string, debug bool) filepath.WalkFunc {
+func createWalkFunc(ignoreFiles, ignoreDirs, ignoreExts, ignoreSuffix string, files *[]string, debug bool) filepath.WalkFunc {
 	return func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -45,7 +45,7 @@ func createWalkFunc(ignoreFiles, ignoreDirs, ignoreExts string, files *[]string,
 			}
 			return filepath.SkipDir
 		}
-		if !info.IsDir() && shouldIncludeFile(path, info, ignoreFiles, ignoreExts) {
+		if !info.IsDir() && shouldIncludeFile(path, info, ignoreFiles, ignoreExts, ignoreSuffix) {
 			if debug {
 				println("Including file:", path)
 			}
@@ -67,10 +67,11 @@ func shouldSkipDir(path, ignoreDirs string) bool {
 	return false
 }
 
-func shouldIncludeFile(path string, info os.FileInfo, ignoreFiles, ignoreExts string) bool {
+func shouldIncludeFile(path string, info os.FileInfo, ignoreFiles, ignoreExts, ignoreSuffix string) bool {
 	ignoreFilesList := strings.Split(ignoreFiles, ",")
 	ignoreExtsList := strings.Split(ignoreExts, ",")
-	return !contains(ignoreFilesList, info.Name()) && !containsExt(ignoreExtsList, filepath.Ext(info.Name()))
+	ignoreSuffixList := strings.Split(ignoreSuffix, ",")
+	return !contains(ignoreFilesList, info.Name()) && !containsExt(ignoreExtsList, filepath.Ext(info.Name())) && !containsSuffix(ignoreSuffixList, info.Name())
 }
 
 func contains(list []string, item string) bool {
@@ -86,6 +87,15 @@ func containsExt(list []string, ext string) bool {
 	ext = strings.TrimPrefix(ext, ".")
 	for _, e := range list {
 		if e == ext {
+			return true
+		}
+	}
+	return false
+}
+
+func containsSuffix(list []string, name string) bool {
+	for _, suffix := range list {
+		if strings.HasSuffix(name, suffix) {
 			return true
 		}
 	}

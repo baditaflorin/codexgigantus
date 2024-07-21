@@ -8,7 +8,6 @@ import (
 	"github.com/baditaflorin/codexgigantus/filehandling"
 	"github.com/baditaflorin/codexgigantus/processing"
 	"github.com/baditaflorin/codexgigantus/utils"
-
 )
 
 func main() {
@@ -35,7 +34,7 @@ func main() {
 	}
 }
 
-func processFiles(cfg *config.Config, gatherFunc func(string, string, string, string, bool) ([]string, error), processFunc func([]string, *strings.Builder, func(string) ([]byte, error)), fileProcessFunc func(string) ([]byte, error)) strings.Builder {
+func processFiles(cfg *config.Config, gatherFunc func(string, string, string, string, string, bool) ([]string, error), processFunc func([]string, *strings.Builder, func(string) ([]byte, error)), fileProcessFunc func(string) ([]byte, error)) strings.Builder {
 	var output strings.Builder
 
 	if cfg.ShowFuncs {
@@ -43,7 +42,7 @@ func processFiles(cfg *config.Config, gatherFunc func(string, string, string, st
 		return output
 	}
 
-	includedFiles, err := gatherFunc(cfg.Dirs, cfg.IgnoreFiles, cfg.IgnoreDirs, cfg.IgnoreExts, cfg.Debug)
+	includedFiles, err := gatherFunc(cfg.Dirs, cfg.IgnoreFiles, cfg.IgnoreDirs, cfg.IgnoreExts, cfg.IgnoreSuffix, cfg.Debug)
 	if err != nil {
 		fmt.Printf("Error gathering included files: %v\n", err)
 		return output
