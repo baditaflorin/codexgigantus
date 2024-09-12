@@ -72,13 +72,17 @@ codexgigantus -debug -dir . -ignore-file package-lock.json,codexgigantus,fronten
 
 ## Development
 
-The code has been refactored to improve modularity and testability using functional programming principles. Key changes include:
+## Notes
+Configuration Parsing: The ParseFlags function in config.go handles all command-line arguments.
+File Processing: The ProcessFiles function in file_processor.go handles directory traversal and file filtering.
+Functional Style: The code uses functional programming principles for better modularity and testability.
+Debug Information: Use the -debug flag to enable detailed debug output.
+Utility Functions: Common utility functions are consolidated in utils.go.
 
-- **Configuration Parsing**: Decoupled from the main function for better readability and testability.
-- **File Processing**: Extracted into a separate function to simplify the main function.
-- **Functional Style**: Refactored file handling using higher-order functions.
-- **Debug Information**: Improved handling using a functional approach.
-- **Utility Functions**: Consolidated into a single module for improved organization and reusability.
+## Testing
+The code is organized for easy unit testing.
+Each function handles a single responsibility.
+Functional parameters can be mocked during tests.
 
 ### Testing
 

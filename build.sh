@@ -1,7 +1,8 @@
 #!/bin/bash
 
 # Build the Go project
-go build -o codexgigantus ./cmd/main.go
+
+go build -o codexgigantus main.go config.go file_processor.go utils.go
 
 # Make the binary executable
 chmod +x codexgigantus
