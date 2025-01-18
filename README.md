@@ -17,7 +17,7 @@ CodexGigantus is a command-line tool written in Go that processes files in a spe
 ### Steps
 1. Clone the repository:
     ```sh
-    git clone https://github.com/yourusername/codexgigantus.git
+    git clone https://github.com/baditaflorin/codexgigantus.git
     ```
 2. Navigate to the project directory:
     ```sh
