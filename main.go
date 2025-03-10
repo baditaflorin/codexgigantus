@@ -1,4 +1,3 @@
-// main.go
 package main
 
 import (
@@ -6,24 +5,11 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 
 	"github.com/baditaflorin/codexgigantus/internal/completion"
-)
-
-var (
-	// Global flags.
-	dir         string
-	ignoreFile  string
-	ignoreDir   string
-	ignoreExt   string
-	includeExt  string
-	recursive   bool
-	debug       bool
-	save        bool
-	outputFile  string
-	showSize    bool
-	showFuncs   bool
+	"github.com/baditaflorin/codexgigantus/pkg/config"
+	"github.com/baditaflorin/codexgigantus/pkg/processor"
+	"github.com/baditaflorin/codexgigantus/pkg/utils"
 )
 
 var rootCmd = &cobra.Command{
@@ -33,19 +19,39 @@ var rootCmd = &cobra.Command{
 It supports ignoring directories, filtering by file extensions, and more.
 Now using Cobra for robust CLI parsing and automatic shell completions installation.`,
 	Run: func(cmd *cobra.Command, args []string) {
+		// Parse flags using the config package
+		cfg := config.ParseFlags()
+
 		fmt.Println("Running CodexGigantus with the following configuration:")
-		fmt.Printf("  Directory: %s\n", dir)
-		fmt.Printf("  Ignore Files: %s\n", ignoreFile)
-		fmt.Printf("  Ignore Dirs: %s\n", ignoreDir)
-		fmt.Printf("  Ignore Ext: %s\n", ignoreExt)
-		fmt.Printf("  Include Ext: %s\n", includeExt)
-		fmt.Printf("  Recursive: %v\n", recursive)
-		fmt.Printf("  Debug: %v\n", debug)
-		fmt.Printf("  Save: %v\n", save)
-		fmt.Printf("  Output File: %s\n", outputFile)
-		fmt.Printf("  Show Size: %v\n", showSize)
-		fmt.Printf("  Show Funcs: %v\n", showFuncs)
-		// Insert processing logic here.
+		fmt.Printf("  Directory: %v\n", cfg.Dirs)
+		fmt.Printf("  Ignore Files: %v\n", cfg.IgnoreFiles)
+		fmt.Printf("  Ignore Dirs: %v\n", cfg.IgnoreDirs)
+		fmt.Printf("  Ignore Ext: %v\n", cfg.IgnoreExts)
+		fmt.Printf("  Include Ext: %v\n", cfg.IncludeExts)
+		fmt.Printf("  Recursive: %v\n", cfg.Recursive)
+		fmt.Printf("  Debug: %v\n", cfg.Debug)
+		fmt.Printf("  Save: %v\n", cfg.Save)
+		fmt.Printf("  Output File: %s\n", cfg.OutputFile)
+		fmt.Printf("  Show Size: %v\n", cfg.ShowSize)
+		fmt.Printf("  Show Funcs: %v\n", cfg.ShowFuncs)
+
+		results, err := processor.ProcessFiles(cfg)
+		if err != nil {
+			fmt.Println("Error processing files:", err)
+			os.Exit(1)
+		}
+
+		output := utils.GenerateOutput(results, cfg)
+		fmt.Println(output)
+
+		if cfg.Save {
+			err = utils.SaveOutput(output, cfg.OutputFile)
+			if err != nil {
+				fmt.Println("Error saving output:", err)
+			} else {
+				fmt.Printf("Output saved to %s\n", cfg.OutputFile)
+			}
+		}
 	},
 }
 
@@ -89,7 +95,6 @@ Usage:
 	},
 }
 
-
 var installCompletionCmd = &cobra.Command{
 	Use:   "install-completion",
 	Short: "Automatically install shell completions",
@@ -101,31 +106,8 @@ var installCompletionCmd = &cobra.Command{
 }
 
 func init() {
-	cobra.OnInitialize(initConfig)
-
-	// Global flags.
-	rootCmd.PersistentFlags().StringVar(&dir, "dir", ".", "Comma-separated list of directories to search (default: current directory)")
-	rootCmd.PersistentFlags().StringVar(&ignoreFile, "ignore-file", "", "Comma-separated list of files to ignore")
-	rootCmd.PersistentFlags().StringVar(&ignoreDir, "ignore-dir", "", "Comma-separated list of directories to ignore")
-	rootCmd.PersistentFlags().StringVar(&ignoreExt, "ignore-ext", "", "Comma-separated list of file extensions to ignore")
-	rootCmd.PersistentFlags().StringVar(&includeExt, "include-ext", "", "Comma-separated list of file extensions to include")
-	rootCmd.PersistentFlags().BoolVar(&recursive, "recursive", true, "Recursively search directories (default: true)")
-	rootCmd.PersistentFlags().BoolVar(&debug, "debug", false, "Enable debug output")
-	rootCmd.PersistentFlags().BoolVar(&save, "save", false, "Save the output to a file")
-	rootCmd.PersistentFlags().StringVar(&outputFile, "output-file", "output.txt", "Specify the output file name (default: output.txt)")
-	rootCmd.PersistentFlags().BoolVar(&showSize, "show-size", false, "Show the size of the result in bytes")
-	rootCmd.PersistentFlags().BoolVar(&showFuncs, "show-funcs", false, "Show only functions and their parameters")
-
 	rootCmd.AddCommand(completionCmd)
 	rootCmd.AddCommand(installCompletionCmd)
-}
-
-func initConfig() {
-	viper.SetConfigName("config")
-	viper.AddConfigPath(".")
-	if err := viper.ReadInConfig(); err == nil {
-		fmt.Println("Using config file:", viper.ConfigFileUsed())
-	}
 }
 
 func main() {

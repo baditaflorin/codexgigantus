@@ -1,5 +1,5 @@
 // config.go
-package main
+package config
 
 import (
 	"flag"

@@ -1,5 +1,5 @@
 // file_processor.go
-package main
+package processor
 
 import (
 	"os"
