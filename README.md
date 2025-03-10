@@ -8,6 +8,7 @@ CodexGigantus is a command-line tool written in Go that processes files in a spe
 - Exclude files with specific extensions
 - Include only files with specific extensions
 - Process and display contents of text files
+- **Auto-Generated Shell Completions:** Use the built-in `completion` command to generate completions for bash, zsh, fish, and PowerShell.
 
 ## Installation
 
