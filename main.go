@@ -54,28 +54,26 @@ var completionCmd = &cobra.Command{
 	Short: "Generate completion script",
 	Long: `Generate the auto-completion script for your shell.
 
-Examples:
+If no shell is specified, the available options are:
+  bash
+  zsh
+  fish
+  powershell
 
-Bash:
-  $ codexgigantus completion bash > /etc/bash_completion.d/codexgigantus
-
-Zsh:
-  $ codexgigantus completion zsh > "${fpath[1]}/_codexgigantus"
-
-Fish:
-  $ codexgigantus completion fish > ~/.config/fish/completions/codexgigantus.fish
-
-PowerShell:
-  PS> codexgigantus completion powershell | Out-String | Invoke-Expression
+Usage:
+  ./codexgigantus completion [shell]
 `,
-	Args: cobra.ExactValidArgs(1),
-	ValidArgs: []string{
-		"bash",
-		"zsh",
-		"fish",
-		"powershell",
-	},
+	Args: cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
+		if len(args) == 0 {
+			fmt.Println("Available shells:")
+			fmt.Println("  bash")
+			fmt.Println("  zsh")
+			fmt.Println("  fish")
+			fmt.Println("  powershell")
+			fmt.Println("\nUsage: ./codexgigantus completion [shell]")
+			return
+		}
 		switch args[0] {
 		case "bash":
 			rootCmd.GenBashCompletion(os.Stdout)
@@ -85,9 +83,12 @@ PowerShell:
 			rootCmd.GenFishCompletion(os.Stdout, true)
 		case "powershell":
 			rootCmd.GenPowerShellCompletionWithDesc(os.Stdout)
+		default:
+			fmt.Printf("Shell %s is not supported.\n", args[0])
 		}
 	},
 }
+
 
 var installCompletionCmd = &cobra.Command{
 	Use:   "install-completion",
