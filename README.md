@@ -38,7 +38,7 @@ CodexGigantus is a command-line tool written in Go that processes files in a spe
 
 ### How to test it on this repo
 ```shell
- ./CodexGigantus -dir . --ignore-file CodexGigantus,.DS_Store,qodana.yaml --ignore-ext txt --ignore-dir .git,.idea --save --output-file chatgpt_code.txt
+./CodexGigantus --dir . --ignore-file CodexGigantus,.DS_Store,qodana.yaml --ignore-ext txt --ignore-dir .git,.idea --save --output-file chatgpt_code.txt
 ```
 ### Flags Explanation
 - `--dir` or `-dir`: Comma-separated list of directories to search (default: current directory).
