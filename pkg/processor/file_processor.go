@@ -5,14 +5,17 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/baditaflorin/codexgigantus/pkg/config"
+	"github.com/baditaflorin/codexgigantus/pkg/utils"
 )
 
-func ProcessFiles(config *Config) ([]FileResult, error) {
-	var results []FileResult
+func ProcessFiles(cfg *config.Config) ([]utils.FileResult, error) {
+	var results []utils.FileResult
 
-	for _, dir := range config.Dirs {
-		if config.Debug {
-			Debug("Processing directory: %s", dir)
+	for _, dir := range cfg.Dirs {
+		if cfg.Debug {
+			utils.Debug("Processing directory: %s", dir)
 		}
 		err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
@@ -21,22 +24,22 @@ func ProcessFiles(config *Config) ([]FileResult, error) {
 
 			// Handle directories
 			if info.IsDir() {
-				if shouldIgnoreDir(path, config) {
-					if config.Debug {
-						Debug("Ignoring directory: %s", path)
+				if shouldIgnoreDir(path, cfg) {
+					if cfg.Debug {
+						utils.Debug("Ignoring directory: %s", path)
 					}
 					return filepath.SkipDir
 				}
-				if !config.Recursive && path != dir {
+				if !cfg.Recursive && path != dir {
 					return filepath.SkipDir
 				}
 				return nil
 			}
 
 			// Handle files
-			if shouldIgnoreFile(path, config) {
-				if config.Debug {
-					Debug("Ignoring file: %s", path)
+			if shouldIgnoreFile(path, cfg) {
+				if cfg.Debug {
+					utils.Debug("Ignoring file: %s", path)
 				}
 				return nil
 			}
@@ -46,7 +49,7 @@ func ProcessFiles(config *Config) ([]FileResult, error) {
 				return err
 			}
 
-			results = append(results, FileResult{
+			results = append(results, utils.FileResult{
 				Path:    path,
 				Content: string(content),
 			})
@@ -61,8 +64,8 @@ func ProcessFiles(config *Config) ([]FileResult, error) {
 	return results, nil
 }
 
-func shouldIgnoreDir(path string, config *Config) bool {
-	for _, ignoreDir := range config.IgnoreDirs {
+func shouldIgnoreDir(path string, cfg *config.Config) bool {
+	for _, ignoreDir := range cfg.IgnoreDirs {
 		if strings.Contains(path, ignoreDir) {
 			return true
 		}
@@ -70,19 +73,19 @@ func shouldIgnoreDir(path string, config *Config) bool {
 	return false
 }
 
-func shouldIgnoreFile(path string, config *Config) bool {
+func shouldIgnoreFile(path string, cfg *config.Config) bool {
 	filename := filepath.Base(path)
 	ext := strings.TrimPrefix(filepath.Ext(path), ".")
 
-	for _, ignoreFile := range config.IgnoreFiles {
+	for _, ignoreFile := range cfg.IgnoreFiles {
 		if filename == ignoreFile {
 			return true
 		}
 	}
 
-	if len(config.IncludeExts) > 0 {
+	if len(cfg.IncludeExts) > 0 {
 		include := false
-		for _, includeExt := range config.IncludeExts {
+		for _, includeExt := range cfg.IncludeExts {
 			if ext == includeExt {
 				include = true
 				break
@@ -93,16 +96,11 @@ func shouldIgnoreFile(path string, config *Config) bool {
 		}
 	}
 
-	for _, ignoreExt := range config.IgnoreExts {
+	for _, ignoreExt := range cfg.IgnoreExts {
 		if ext == ignoreExt {
 			return true
 		}
 	}
 
 	return false
-}
-
-type FileResult struct {
-	Path    string
-	Content string
 }

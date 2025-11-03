@@ -9,13 +9,21 @@ import (
 	"go/token"
 	"os"
 	"strings"
+
+	"github.com/baditaflorin/codexgigantus/pkg/config"
 )
 
-func GenerateOutput(results []FileResult, config *Config) string {
+// FileResult represents a processed file with its path and content
+type FileResult struct {
+	Path    string
+	Content string
+}
+
+func GenerateOutput(results []FileResult, cfg *config.Config) string {
 	var buffer bytes.Buffer
 
 	for _, result := range results {
-		if config.ShowFuncs && isGoFile(result.Path) {
+		if cfg.ShowFuncs && isGoFile(result.Path) {
 			funcs := extractFunctions(result.Content)
 			if len(funcs) > 0 {
 				buffer.WriteString(fmt.Sprintf("File: %s\n", result.Path))
