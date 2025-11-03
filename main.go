@@ -12,6 +12,20 @@ import (
 	"github.com/baditaflorin/codexgigantus/pkg/utils"
 )
 
+var (
+	dirFlag        string
+	ignoreFileFlag string
+	ignoreDirFlag  string
+	ignoreExtFlag  string
+	includeExtFlag string
+	recursiveFlag  bool
+	debugFlag      bool
+	saveFlag       bool
+	outputFileFlag string
+	showSizeFlag   bool
+	showFuncsFlag  bool
+)
+
 var rootCmd = &cobra.Command{
 	Use:   "codexgigantus",
 	Short: "Process files in a directory based on given criteria",
@@ -19,8 +33,20 @@ var rootCmd = &cobra.Command{
 It supports ignoring directories, filtering by file extensions, and more.
 Now using Cobra for robust CLI parsing and automatic shell completions installation.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		// Parse flags using the config package
-		cfg := config.ParseFlags()
+		// Build config from flags
+		cfg := &config.Config{
+			Dirs:        config.ParseCommaSeparated(dirFlag),
+			IgnoreFiles: config.ParseCommaSeparated(ignoreFileFlag),
+			IgnoreDirs:  config.ParseCommaSeparated(ignoreDirFlag),
+			IgnoreExts:  config.ParseCommaSeparated(ignoreExtFlag),
+			IncludeExts: config.ParseCommaSeparated(includeExtFlag),
+			Recursive:   recursiveFlag,
+			Debug:       debugFlag,
+			Save:        saveFlag,
+			OutputFile:  outputFileFlag,
+			ShowSize:    showSizeFlag,
+			ShowFuncs:   showFuncsFlag,
+		}
 
 		fmt.Println("Running CodexGigantus with the following configuration:")
 		fmt.Printf("  Directory: %v\n", cfg.Dirs)
@@ -106,6 +132,19 @@ var installCompletionCmd = &cobra.Command{
 }
 
 func init() {
+	// Register flags with Cobra
+	rootCmd.Flags().StringVarP(&dirFlag, "dir", "d", ".", "Comma-separated list of directories to search")
+	rootCmd.Flags().StringVar(&ignoreFileFlag, "ignore-file", "", "Comma-separated list of files to ignore")
+	rootCmd.Flags().StringVar(&ignoreDirFlag, "ignore-dir", "", "Comma-separated list of directories to ignore")
+	rootCmd.Flags().StringVar(&ignoreExtFlag, "ignore-ext", "", "Comma-separated list of file extensions to ignore")
+	rootCmd.Flags().StringVar(&includeExtFlag, "include-ext", "", "Comma-separated list of file extensions to include")
+	rootCmd.Flags().BoolVarP(&recursiveFlag, "recursive", "r", true, "Recursively search directories")
+	rootCmd.Flags().BoolVar(&debugFlag, "debug", false, "Enable debug output")
+	rootCmd.Flags().BoolVarP(&saveFlag, "save", "s", false, "Save the output to a file")
+	rootCmd.Flags().StringVarP(&outputFileFlag, "output-file", "o", "output.txt", "Specify the output file name")
+	rootCmd.Flags().BoolVar(&showSizeFlag, "show-size", false, "Show the size of the result in bytes")
+	rootCmd.Flags().BoolVar(&showFuncsFlag, "show-funcs", false, "Show only functions and their parameters")
+
 	rootCmd.AddCommand(completionCmd)
 	rootCmd.AddCommand(installCompletionCmd)
 }
