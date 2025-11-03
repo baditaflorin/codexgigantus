@@ -4,7 +4,6 @@ package completion
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -146,7 +145,7 @@ func installFishCompletion(rootCmd *cobra.Command) {
 // It returns true if the directory is writable, false otherwise.
 func isWritable(dir string) bool {
 	testFile := filepath.Join(dir, ".writetest")
-	if err := ioutil.WriteFile(testFile, []byte{}, 0644); err != nil {
+	if err := os.WriteFile(testFile, []byte{}, 0644); err != nil {
 		return false
 	}
 	os.Remove(testFile)
@@ -156,10 +155,10 @@ func isWritable(dir string) bool {
 // appendIfNotExists appends a line to a file if it isn't already present.
 // If the file doesn't exist, it creates it with the given content.
 func appendIfNotExists(filename, line string) {
-	data, err := ioutil.ReadFile(filename)
+	data, err := os.ReadFile(filename)
 	if err != nil {
 		// If the file doesn't exist, create it with the line.
-		ioutil.WriteFile(filename, []byte(line), 0644)
+		os.WriteFile(filename, []byte(line), 0644)
 		return
 	}
 	if !strings.Contains(string(data), line) {
