@@ -71,23 +71,76 @@ codexgigantus -dir social-network-backend -ignore-file package-lock.json,auth_te
 codexgigantus -debug -dir . -ignore-file package-lock.json,codexgigantus,frontend.txt -ignore-dir cmd,pkg,.idea,.git,node_modules,__previewjs__ -ignore-ext svg,png,ico,md -output-file frontend.txt -save
 ```
 
+## Architecture
+
+CodexGigantus is organized following Go best practices with clear separation of concerns:
+
+- **main.go**: Application entry point and CLI setup using Cobra
+- **pkg/config**: Configuration management and flag parsing
+- **pkg/processor**: File system traversal and filtering logic
+- **pkg/utils**: Output generation and utility functions
+- **internal/completion**: Shell completion installation
+
+For detailed information about the code structure, see [CODE_STRUCTURE.md](CODE_STRUCTURE.md).
+
 ## Development
 
-## Notes
-Configuration Parsing: The ParseFlags function in config.go handles all command-line arguments.
-File Processing: The ProcessFiles function in file_processor.go handles directory traversal and file filtering.
-Functional Style: The code uses functional programming principles for better modularity and testability.
-Debug Information: Use the -debug flag to enable detailed debug output.
-Utility Functions: Common utility functions are consolidated in utils.go.
+### Building from Source
+
+```bash
+# Clone the repository
+git clone https://github.com/baditaflorin/codexgigantus.git
+cd codexgigantus
+
+# Build using the build script
+./build.sh
+
+# Or build directly with Go
+go build -o CodexGigantus
+```
+
+### Running Tests
+
+```bash
+go test ./...
+```
+
+### Code Organization
+
+- **Configuration Parsing**: The `config` package handles all command-line arguments
+- **File Processing**: The `processor` package handles directory traversal and file filtering
+- **Output Generation**: The `utils` package handles formatting and saving output
+- **Modular Design**: Each package has a single, well-defined responsibility
+- **Debug Information**: Use the `--debug` flag to enable detailed debug output
+
+For contribution guidelines, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Testing
-The code is organized for easy unit testing.
-Each function handles a single responsibility.
-Functional parameters can be mocked during tests.
 
-### Testing
+The project includes comprehensive unit tests for all packages:
 
-To ensure the code is easy to test, functional parameters are used for gathering and processing files, allowing easy mocking during tests. Each function handles a single responsibility, making the codebase modular and maintainable.
+```bash
+# Run all tests
+go test ./...
+
+# Run tests with verbose output
+go test -v ./...
+
+# Run tests with coverage
+go test -cover ./...
+
+# Generate HTML coverage report
+go test -coverprofile=coverage.out ./...
+go tool cover -html=coverage.out
+```
+
+The code is organized for easy unit testing:
+- Each function handles a single responsibility
+- Functions accept configuration as parameters (dependency injection)
+- Table-driven tests for comprehensive coverage
+- Test files are located alongside source files (*_test.go)
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on writing tests.
 
 ## Contributing
 

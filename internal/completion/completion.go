@@ -1,4 +1,5 @@
-// internal/completion/completion.go
+// Package completion provides shell completion installation functionality.
+// It supports automatic detection and installation of completions for bash, zsh, and fish shells.
 package completion
 
 import (
@@ -11,7 +12,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// InstallCompletion detects the current shell and installs the appropriate completions.
+// InstallCompletion detects the current shell from the SHELL environment variable
+// and installs the appropriate shell completions for the given Cobra command.
+// Supported shells: bash, zsh, fish.
 func InstallCompletion(rootCmd *cobra.Command) {
 	shell := os.Getenv("SHELL")
 	if shell == "" {
@@ -41,6 +44,8 @@ func InstallCompletion(rootCmd *cobra.Command) {
 	}
 }
 
+// installBashCompletion generates and installs bash completion scripts.
+// It attempts to install to /etc/bash_completion.d/ if writable, otherwise to the user's home directory.
 func installBashCompletion(rootCmd *cobra.Command) {
 	etcPath := "/etc/bash_completion.d/codexgigantus"
 	targetPath := ""
@@ -76,6 +81,8 @@ func installBashCompletion(rootCmd *cobra.Command) {
 	fmt.Printf("Bash completions installed to %s. Restart your shell or run 'source %s' to activate.\n", targetPath, targetPath)
 }
 
+// installZshCompletion generates and installs zsh completion scripts.
+// It creates a completions directory in ~/.zsh/ and updates .zshrc if needed.
 func installZshCompletion(rootCmd *cobra.Command) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
@@ -107,6 +114,8 @@ func installZshCompletion(rootCmd *cobra.Command) {
 	fmt.Printf("Zsh completions installed to %s. Restart your shell to activate.\n", targetPath)
 }
 
+// installFishCompletion generates and installs fish completion scripts.
+// It creates the completion file in ~/.config/fish/completions/.
 func installFishCompletion(rootCmd *cobra.Command) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
@@ -133,7 +142,8 @@ func installFishCompletion(rootCmd *cobra.Command) {
 	fmt.Printf("Fish completions installed to %s. Restart your shell to activate.\n", targetPath)
 }
 
-// isWritable checks if the directory is writable.
+// isWritable checks if a directory is writable by attempting to create a test file.
+// It returns true if the directory is writable, false otherwise.
 func isWritable(dir string) bool {
 	testFile := filepath.Join(dir, ".writetest")
 	if err := ioutil.WriteFile(testFile, []byte{}, 0644); err != nil {
@@ -144,6 +154,7 @@ func isWritable(dir string) bool {
 }
 
 // appendIfNotExists appends a line to a file if it isn't already present.
+// If the file doesn't exist, it creates it with the given content.
 func appendIfNotExists(filename, line string) {
 	data, err := ioutil.ReadFile(filename)
 	if err != nil {

@@ -1,4 +1,5 @@
-// file_processor.go
+// Package processor handles file system traversal and file processing.
+// It walks through directories, applies filters, and reads file contents.
 package processor
 
 import (
@@ -10,6 +11,9 @@ import (
 	"github.com/baditaflorin/codexgigantus/pkg/utils"
 )
 
+// ProcessFiles walks through directories specified in the configuration,
+// applies filters (ignore/include rules), and reads the contents of matching files.
+// It returns a slice of FileResult containing the path and content of each processed file.
 func ProcessFiles(cfg *config.Config) ([]utils.FileResult, error) {
 	var results []utils.FileResult
 
@@ -64,6 +68,8 @@ func ProcessFiles(cfg *config.Config) ([]utils.FileResult, error) {
 	return results, nil
 }
 
+// shouldIgnoreDir checks if a directory should be ignored based on the configuration.
+// It returns true if the directory path contains any of the ignore patterns.
 func shouldIgnoreDir(path string, cfg *config.Config) bool {
 	for _, ignoreDir := range cfg.IgnoreDirs {
 		if strings.Contains(path, ignoreDir) {
@@ -73,6 +79,9 @@ func shouldIgnoreDir(path string, cfg *config.Config) bool {
 	return false
 }
 
+// shouldIgnoreFile determines if a file should be ignored based on the configuration.
+// It checks the filename, extension, and include/exclude rules.
+// Returns true if the file should be skipped.
 func shouldIgnoreFile(path string, cfg *config.Config) bool {
 	filename := filepath.Base(path)
 	ext := strings.TrimPrefix(filepath.Ext(path), ".")
