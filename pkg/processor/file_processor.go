@@ -7,14 +7,13 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/baditaflorin/codexgigantus/pkg/config"
 	"github.com/baditaflorin/codexgigantus/pkg/utils"
 )
 
 // ProcessFiles walks through directories specified in the configuration,
 // applies filters (ignore/include rules), and reads the contents of matching files.
 // It returns a slice of FileResult containing the path and content of each processed file.
-func ProcessFiles(cfg *config.Config) ([]utils.FileResult, error) {
+func ProcessFiles(cfg *Config) ([]utils.FileResult, error) {
 	var results []utils.FileResult
 
 	for _, dir := range cfg.Dirs {
@@ -70,7 +69,7 @@ func ProcessFiles(cfg *config.Config) ([]utils.FileResult, error) {
 
 // shouldIgnoreDir checks if a directory should be ignored based on the configuration.
 // It returns true if the directory path contains any of the ignore patterns.
-func shouldIgnoreDir(path string, cfg *config.Config) bool {
+func shouldIgnoreDir(path string, cfg *Config) bool {
 	for _, ignoreDir := range cfg.IgnoreDirs {
 		if strings.Contains(path, ignoreDir) {
 			return true
@@ -82,7 +81,7 @@ func shouldIgnoreDir(path string, cfg *config.Config) bool {
 // shouldIgnoreFile determines if a file should be ignored based on the configuration.
 // It checks the filename, extension, and include/exclude rules.
 // Returns true if the file should be skipped.
-func shouldIgnoreFile(path string, cfg *config.Config) bool {
+func shouldIgnoreFile(path string, cfg *Config) bool {
 	filename := filepath.Base(path)
 	ext := strings.TrimPrefix(filepath.Ext(path), ".")
 

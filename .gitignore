@@ -35,3 +35,44 @@ Thumbs.db
 
 # Temporary files
 /tmp/
+
+# Build artifacts
+codexgigantus-cli
+codexgigantus-web
+CodexGigantus
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test artifacts
+*.test
+*.out
+coverage.out
+coverage.html
+
+# Output files
+output.txt
+*_output.txt
+
+# Environment files
+.env
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Data directories
+/data/
+/configs/*.local.*
+
+# Docker volumes
+postgres-data/
+mysql-data/

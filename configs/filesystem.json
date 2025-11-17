@@ -1,0 +1,39 @@
+{
+  "name": "Filesystem Processing Example",
+  "description": "Example configuration for processing files from filesystem",
+  "source_type": "filesystem",
+  "directories": [
+    ".",
+    "./src",
+    "./pkg"
+  ],
+  "recursive": true,
+  "ignore_files": [
+    ".DS_Store",
+    "Thumbs.db"
+  ],
+  "ignore_dirs": [
+    "node_modules",
+    ".git",
+    "vendor",
+    "dist",
+    "build"
+  ],
+  "exclude_extensions": [
+    "log",
+    "tmp",
+    "cache"
+  ],
+  "include_extensions": [
+    "go",
+    "py",
+    "js",
+    "java",
+    "cpp",
+    "h"
+  ],
+  "output_file": "output.txt",
+  "show_size": false,
+  "show_funcs": false,
+  "debug": false
+}

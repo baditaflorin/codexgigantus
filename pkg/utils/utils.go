@@ -1,68 +1,56 @@
-// Package utils provides utility functions for output generation and file operations.
-// It includes functions for formatting results, saving output, and extracting code information.
+// Package utils provides utility functions for file processing and output generation.
+// It includes functions for reading files, extracting Go function signatures,
+// and generating formatted output.
 package utils
 
 import (
-	"bytes"
 	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
 	"os"
+	"path/filepath"
 	"strings"
-
-	"github.com/baditaflorin/codexgigantus/pkg/config"
 )
 
 // FileResult represents a processed file with its path and content.
-// It is the output of file processing operations.
 type FileResult struct {
-	// Path is the file system path to the file
-	Path string
-	// Content is the text content of the file
-	Content string
+	Path    string // Path to the file
+	Content string // Content of the file
 }
 
-// GenerateOutput formats the processed file results into a string.
-// If ShowFuncs is enabled in the config, it extracts and displays only function signatures
-// for Go files. Otherwise, it displays the full file content.
-func GenerateOutput(results []FileResult, cfg *config.Config) string {
-	var buffer bytes.Buffer
-
+// GenerateOutput creates formatted output from file results.
+// If showFuncs is true, it extracts only function signatures from Go files.
+func GenerateOutput(results []FileResult, showFuncs bool) string {
+	var output strings.Builder
 	for _, result := range results {
-		if cfg.ShowFuncs && isGoFile(result.Path) {
-			funcs := extractFunctions(result.Content)
-			if len(funcs) > 0 {
-				buffer.WriteString(fmt.Sprintf("File: %s\n", result.Path))
-				for _, f := range funcs {
-					buffer.WriteString(fmt.Sprintf("Function: %s\n", f))
-				}
-				buffer.WriteString("\n")
+		output.WriteString(fmt.Sprintf("File: %s\n", result.Path))
+		if showFuncs && IsGoFile(result.Path) {
+			funcs := ExtractFunctions(result.Content)
+			for _, fn := range funcs {
+				output.WriteString(fmt.Sprintf("Function: %s\n", fn))
 			}
 		} else {
-			buffer.WriteString(fmt.Sprintf("File: %s\n", result.Path))
-			buffer.WriteString(result.Content)
-			buffer.WriteString("\n\n")
+			output.WriteString(result.Content)
+			output.WriteString("\n\n")
 		}
 	}
-
-	return buffer.String()
+	return output.String()
 }
 
-// SaveOutput writes the given output string to a file with the specified filename.
-// It creates or overwrites the file with 0644 permissions.
+// SaveOutput writes the output string to a file.
 func SaveOutput(output, filename string) error {
 	return os.WriteFile(filename, []byte(output), 0644)
 }
 
-// isGoFile checks if a file path has a .go extension.
-func isGoFile(path string) bool {
-	return strings.HasSuffix(path, ".go")
+// IsGoFile checks if a file has a .go extension.
+func IsGoFile(path string) bool {
+	return filepath.Ext(path) == ".go"
 }
 
-// extractFunctions parses Go source code and extracts function signatures.
-// It returns a slice of strings representing function names and their parameters.
-func extractFunctions(content string) []string {
+// ExtractFunctions parses Go source code and extracts function signatures.
+// Returns a slice of function names found in the source code.
+func ExtractFunctions(content string) []string {
 	var funcs []string
 
 	fset := token.NewFileSet()
@@ -71,28 +59,17 @@ func extractFunctions(content string) []string {
 		return funcs
 	}
 
-	for _, f := range node.Decls {
-		if fn, ok := f.(*ast.FuncDecl); ok {
-			funcSignature := fn.Name.Name + "("
-			params := []string{}
-			for _, param := range fn.Type.Params.List {
-				names := []string{}
-				for _, name := range param.Names {
-					names = append(names, name.Name)
-				}
-				paramType := fmt.Sprintf("%s", param.Type)
-				params = append(params, strings.Join(names, ", ")+" "+paramType)
-			}
-			funcSignature += strings.Join(params, ", ") + ")"
-			funcs = append(funcs, funcSignature)
+	for _, decl := range node.Decls {
+		if fn, ok := decl.(*ast.FuncDecl); ok {
+			funcs = append(funcs, fn.Name.Name)
 		}
 	}
 
 	return funcs
 }
 
-// Debug prints a formatted debug message to stdout.
-// Messages are prefixed with "DEBUG: " to distinguish them from regular output.
+// Debug prints debug messages when debug mode is enabled.
+// It's a simple helper function to avoid checking debug flags everywhere.
 func Debug(format string, args ...interface{}) {
-	fmt.Printf("DEBUG: "+format+"\n", args...)
+	fmt.Printf("[DEBUG] "+format+"\n", args...)
 }
