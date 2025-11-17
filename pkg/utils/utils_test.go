@@ -5,40 +5,36 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/baditaflorin/codexgigantus/pkg/config"
 )
 
 func TestFileResult(t *testing.T) {
-	fr := FileResult{
-		Path:    "/path/to/file.txt",
-		Content: "test content",
+	result := FileResult{
+		Path:    "/path/to/file.go",
+		Content: "package main",
 	}
 
-	if fr.Path != "/path/to/file.txt" {
-		t.Errorf("Expected path '/path/to/file.txt', got %s", fr.Path)
+	if result.Path != "/path/to/file.go" {
+		t.Errorf("Path = %v, want /path/to/file.go", result.Path)
 	}
-	if fr.Content != "test content" {
-		t.Errorf("Expected content 'test content', got %s", fr.Content)
+	if result.Content != "package main" {
+		t.Errorf("Content = %v, want 'package main'", result.Content)
 	}
 }
 
 func TestGenerateOutput(t *testing.T) {
 	tests := []struct {
-		name     string
-		results  []FileResult
-		config   *config.Config
-		contains []string
+		name      string
+		results   []FileResult
+		showFuncs bool
+		want      string
 	}{
 		{
 			name: "basic output",
 			results: []FileResult{
-				{Path: "test.txt", Content: "hello world"},
+				{Path: "test.txt", Content: "hello"},
 			},
-			config: &config.Config{
-				ShowFuncs: false,
-			},
-			contains: []string{"File: test.txt", "hello world"},
+			showFuncs: false,
+			want:      "File: test.txt\nhello\n\n",
 		},
 		{
 			name: "multiple files",
@@ -46,64 +42,63 @@ func TestGenerateOutput(t *testing.T) {
 				{Path: "file1.txt", Content: "content1"},
 				{Path: "file2.txt", Content: "content2"},
 			},
-			config: &config.Config{
-				ShowFuncs: false,
-			},
-			contains: []string{"File: file1.txt", "content1", "File: file2.txt", "content2"},
+			showFuncs: false,
+			want:      "File: file1.txt\ncontent1\n\nFile: file2.txt\ncontent2\n\n",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			output := GenerateOutput(tt.results, tt.config)
-			for _, s := range tt.contains {
-				if !strings.Contains(output, s) {
-					t.Errorf("Expected output to contain %q, but it didn't. Output: %s", s, output)
-				}
+			got := GenerateOutput(tt.results, tt.showFuncs)
+			if got != tt.want {
+				t.Errorf("GenerateOutput() = %v, want %v", got, tt.want)
 			}
 		})
 	}
 }
 
 func TestSaveOutput(t *testing.T) {
-	// Create a temporary directory for testing
 	tmpDir := t.TempDir()
-	testFile := filepath.Join(tmpDir, "test_output.txt")
+	testFile := filepath.Join(tmpDir, "output.txt")
+	content := "test content"
 
-	content := "test content for save"
 	err := SaveOutput(content, testFile)
 	if err != nil {
-		t.Fatalf("SaveOutput failed: %v", err)
+		t.Fatalf("SaveOutput() error = %v", err)
 	}
 
-	// Read back the file
+	// Verify file was created
+	if _, err := os.Stat(testFile); os.IsNotExist(err) {
+		t.Fatal("Output file was not created")
+	}
+
+	// Verify content
 	data, err := os.ReadFile(testFile)
 	if err != nil {
-		t.Fatalf("Failed to read saved file: %v", err)
+		t.Fatalf("Failed to read output file: %v", err)
 	}
-
 	if string(data) != content {
-		t.Errorf("Expected content %q, got %q", content, string(data))
+		t.Errorf("File content = %v, want %v", string(data), content)
 	}
 }
 
 func TestIsGoFile(t *testing.T) {
 	tests := []struct {
-		path     string
-		expected bool
+		path string
+		want bool
 	}{
-		{"test.go", true},
-		{"test.txt", false},
-		{"file.GO", false}, // case sensitive
+		{"main.go", true},
+		{"test.py", false},
+		{"file.txt", false},
 		{"/path/to/file.go", true},
-		{"no_extension", false},
+		{"file.GO", false}, // case sensitive
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.path, func(t *testing.T) {
-			result := isGoFile(tt.path)
-			if result != tt.expected {
-				t.Errorf("isGoFile(%q) = %v, want %v", tt.path, result, tt.expected)
+			got := IsGoFile(tt.path)
+			if got != tt.want {
+				t.Errorf("IsGoFile(%v) = %v, want %v", tt.path, got, tt.want)
 			}
 		})
 	}
@@ -111,57 +106,85 @@ func TestIsGoFile(t *testing.T) {
 
 func TestExtractFunctions(t *testing.T) {
 	tests := []struct {
-		name     string
-		content  string
-		expected int // number of functions expected
+		name    string
+		content string
+		want    []string
 	}{
 		{
-			name: "simple function",
-			content: `package main
-func main() {
-	println("hello")
-}`,
-			expected: 1,
+			name:    "simple function",
+			content: "package main\nfunc hello() {}",
+			want:    []string{"hello"},
 		},
 		{
-			name: "multiple functions",
-			content: `package main
-func foo() {}
-func bar(x int) {}
-func baz(a string, b int) string { return "" }`,
-			expected: 3,
+			name:    "multiple functions",
+			content: "package main\nfunc foo() {}\nfunc bar() {}",
+			want:    []string{"foo", "bar"},
 		},
 		{
-			name:     "no functions",
-			content:  `package main\nvar x = 5`,
-			expected: 0,
+			name:    "no functions",
+			content: "package main\nvar x = 1",
+			want:    []string{},
 		},
 		{
-			name:     "invalid syntax",
-			content:  `this is not valid go code`,
-			expected: 0,
+			name:    "invalid syntax",
+			content: "invalid go code",
+			want:    []string{},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := extractFunctions(tt.content)
-			if len(result) != tt.expected {
-				t.Errorf("extractFunctions() returned %d functions, expected %d. Functions: %v",
-					len(result), tt.expected, result)
+			got := ExtractFunctions(tt.content)
+			if len(got) != len(tt.want) {
+				t.Errorf("ExtractFunctions() returned %d functions, want %d", len(got), len(tt.want))
+				return
+			}
+			for i := range got {
+				if got[i] != tt.want[i] {
+					t.Errorf("ExtractFunctions()[%d] = %v, want %v", i, got[i], tt.want[i])
+				}
 			}
 		})
 	}
 }
 
 func TestDebug(t *testing.T) {
-	// Debug function writes to stdout, so we just ensure it doesn't panic
+	// This test just ensures Debug doesn't panic
 	defer func() {
 		if r := recover(); r != nil {
-			t.Errorf("Debug panicked: %v", r)
+			t.Errorf("Debug() panicked: %v", r)
 		}
 	}()
 
 	Debug("test message")
 	Debug("test with args: %s %d", "hello", 42)
+}
+
+func TestGenerateOutputWithShowFuncs(t *testing.T) {
+	goContent := `package main
+
+func main() {
+	println("hello")
+}
+
+func helper() {
+	println("helper")
+}`
+
+	results := []FileResult{
+		{Path: "main.go", Content: goContent},
+		{Path: "test.txt", Content: "not go"},
+	}
+
+	output := GenerateOutput(results, true)
+
+	// Should contain function names for .go file
+	if !strings.Contains(output, "main") || !strings.Contains(output, "helper") {
+		t.Error("Output should contain function names for Go files")
+	}
+
+	// Should contain full content for non-Go files
+	if !strings.Contains(output, "not go") {
+		t.Error("Output should contain full content for non-Go files")
+	}
 }

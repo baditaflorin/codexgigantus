@@ -1,0 +1,91 @@
+version: '3.8'
+
+services:
+  # CodexGigantus Web GUI
+  codexgigantus-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: codexgigantus-web
+    environment:
+      - APP_MODE=web
+      - WEB_PORT=8080
+      - WEB_HOST=0.0.0.0
+      - DB_TYPE=postgres
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=codex
+      - DB_USER=codex
+      - DB_PASSWORD=codex_password
+      - DB_SSL_MODE=disable
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./configs:/app/configs
+      - ./data:/app/data
+      - ./.env:/app/.env:ro
+    depends_on:
+      - postgres
+    networks:
+      - codex-network
+    restart: unless-stopped
+
+  # PostgreSQL Database (optional, for database source mode)
+  postgres:
+    image: postgres:15-alpine
+    container_name: codexgigantus-postgres
+    environment:
+      - POSTGRES_DB=codex
+      - POSTGRES_USER=codex
+      - POSTGRES_PASSWORD=codex_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - codex-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U codex"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # MySQL Database (alternative, commented out by default)
+  # mysql:
+  #   image: mysql:8.0
+  #   container_name: codexgigantus-mysql
+  #   environment:
+  #     - MYSQL_DATABASE=codex
+  #     - MYSQL_USER=codex
+  #     - MYSQL_PASSWORD=codex_password
+  #     - MYSQL_ROOT_PASSWORD=root_password
+  #   ports:
+  #     - "3306:3306"
+  #   volumes:
+  #     - mysql-data:/var/lib/mysql
+  #     - ./init-db-mysql.sql:/docker-entrypoint-initdb.d/init.sql:ro
+  #   networks:
+  #     - codex-network
+  #   restart: unless-stopped
+
+  # Adminer for database management (optional)
+  adminer:
+    image: adminer:latest
+    container_name: codexgigantus-adminer
+    ports:
+      - "8081:8080"
+    environment:
+      - ADMINER_DEFAULT_SERVER=postgres
+    networks:
+      - codex-network
+    restart: unless-stopped
+
+networks:
+  codex-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  # mysql-data:

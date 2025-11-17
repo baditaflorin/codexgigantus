@@ -11,6 +11,47 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// Installer handles shell completion installation
+type Installer struct {
+	shellType string
+}
+
+// NewInstaller creates a new completion installer
+func NewInstaller() (*Installer, error) {
+	shell := os.Getenv("SHELL")
+	if shell == "" {
+		return nil, fmt.Errorf("could not detect shell from SHELL environment variable")
+	}
+
+	var shellType string
+	switch {
+	case strings.Contains(shell, "bash"):
+		shellType = "bash"
+	case strings.Contains(shell, "zsh"):
+		shellType = "zsh"
+	case strings.Contains(shell, "fish"):
+		shellType = "fish"
+	default:
+		return nil, fmt.Errorf("unsupported shell: %s", shell)
+	}
+
+	return &Installer{shellType: shellType}, nil
+}
+
+// Install installs shell completion for the detected shell
+func (i *Installer) Install(rootCmd *cobra.Command) error {
+	switch i.shellType {
+	case "bash":
+		return installBashCompletion(rootCmd)
+	case "zsh":
+		return installZshCompletion(rootCmd)
+	case "fish":
+		return installFishCompletion(rootCmd)
+	default:
+		return fmt.Errorf("unsupported shell: %s", i.shellType)
+	}
+}
+
 // InstallCompletion detects the current shell from the SHELL environment variable
 // and installs the appropriate shell completions for the given Cobra command.
 // Supported shells: bash, zsh, fish.
@@ -45,7 +86,7 @@ func InstallCompletion(rootCmd *cobra.Command) {
 
 // installBashCompletion generates and installs bash completion scripts.
 // It attempts to install to /etc/bash_completion.d/ if writable, otherwise to the user's home directory.
-func installBashCompletion(rootCmd *cobra.Command) {
+func installBashCompletion(rootCmd *cobra.Command) error {
 	etcPath := "/etc/bash_completion.d/codexgigantus"
 	targetPath := ""
 	if isWritable(filepath.Dir(etcPath)) {
@@ -53,22 +94,19 @@ func installBashCompletion(rootCmd *cobra.Command) {
 	} else {
 		homeDir, err := os.UserHomeDir()
 		if err != nil {
-			fmt.Println("Error finding user home directory:", err)
-			return
+			return fmt.Errorf("error finding user home directory: %w", err)
 		}
 		targetPath = filepath.Join(homeDir, ".codexgigantus_completion")
 	}
 
 	f, err := os.Create(targetPath)
 	if err != nil {
-		fmt.Println("Error creating bash completion file:", err)
-		return
+		return fmt.Errorf("error creating bash completion file: %w", err)
 	}
 	defer f.Close()
 
 	if err := rootCmd.GenBashCompletion(f); err != nil {
-		fmt.Println("Error generating bash completion:", err)
-		return
+		return fmt.Errorf("error generating bash completion: %w", err)
 	}
 
 	// If installed in the home directory, append a source command to .bashrc if needed.
@@ -78,32 +116,29 @@ func installBashCompletion(rootCmd *cobra.Command) {
 		appendIfNotExists(bashrc, sourceLine)
 	}
 	fmt.Printf("Bash completions installed to %s. Restart your shell or run 'source %s' to activate.\n", targetPath, targetPath)
+	return nil
 }
 
 // installZshCompletion generates and installs zsh completion scripts.
 // It creates a completions directory in ~/.zsh/ and updates .zshrc if needed.
-func installZshCompletion(rootCmd *cobra.Command) {
+func installZshCompletion(rootCmd *cobra.Command) error {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		fmt.Println("Error finding user home directory:", err)
-		return
+		return fmt.Errorf("error finding user home directory: %w", err)
 	}
 	completionsDir := filepath.Join(homeDir, ".zsh", "completions")
 	if err := os.MkdirAll(completionsDir, 0755); err != nil {
-		fmt.Println("Error creating zsh completions directory:", err)
-		return
+		return fmt.Errorf("error creating zsh completions directory: %w", err)
 	}
 	targetPath := filepath.Join(completionsDir, "_codexgigantus")
 	f, err := os.Create(targetPath)
 	if err != nil {
-		fmt.Println("Error creating zsh completion file:", err)
-		return
+		return fmt.Errorf("error creating zsh completion file: %w", err)
 	}
 	defer f.Close()
 
 	if err := rootCmd.GenZshCompletion(f); err != nil {
-		fmt.Println("Error generating zsh completion:", err)
-		return
+		return fmt.Errorf("error generating zsh completion: %w", err)
 	}
 
 	// Ensure that .zshrc contains the necessary configuration.
@@ -111,34 +146,32 @@ func installZshCompletion(rootCmd *cobra.Command) {
 	zshSetup := fmt.Sprintf("\n# CodexGigantus completion\nfpath=(%s $fpath)\nautoload -Uz compinit && compinit\n", completionsDir)
 	appendIfNotExists(zshrc, zshSetup)
 	fmt.Printf("Zsh completions installed to %s. Restart your shell to activate.\n", targetPath)
+	return nil
 }
 
 // installFishCompletion generates and installs fish completion scripts.
 // It creates the completion file in ~/.config/fish/completions/.
-func installFishCompletion(rootCmd *cobra.Command) {
+func installFishCompletion(rootCmd *cobra.Command) error {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		fmt.Println("Error finding user home directory:", err)
-		return
+		return fmt.Errorf("error finding user home directory: %w", err)
 	}
 	completionsDir := filepath.Join(homeDir, ".config", "fish", "completions")
 	if err := os.MkdirAll(completionsDir, 0755); err != nil {
-		fmt.Println("Error creating fish completions directory:", err)
-		return
+		return fmt.Errorf("error creating fish completions directory: %w", err)
 	}
 	targetPath := filepath.Join(completionsDir, "codexgigantus.fish")
 	f, err := os.Create(targetPath)
 	if err != nil {
-		fmt.Println("Error creating fish completion file:", err)
-		return
+		return fmt.Errorf("error creating fish completion file: %w", err)
 	}
 	defer f.Close()
 
 	if err := rootCmd.GenFishCompletion(f, true); err != nil {
-		fmt.Println("Error generating fish completion:", err)
-		return
+		return fmt.Errorf("error generating fish completion: %w", err)
 	}
 	fmt.Printf("Fish completions installed to %s. Restart your shell to activate.\n", targetPath)
+	return nil
 }
 
 // isWritable checks if a directory is writable by attempting to create a test file.

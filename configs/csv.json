@@ -1,0 +1,13 @@
+{
+  "name": "CSV Source Example",
+  "description": "Example configuration for loading files from CSV",
+  "source_type": "csv",
+  "csv_file_path": "./data/files.csv",
+  "csv_delimiter": ",",
+  "csv_path_column": 0,
+  "csv_content_column": 1,
+  "csv_has_header": true,
+  "output_file": "csv_output.txt",
+  "show_size": false,
+  "debug": false
+}

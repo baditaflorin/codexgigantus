@@ -1,0 +1,20 @@
+{
+  "name": "Database Source Example",
+  "description": "Example configuration for loading files from PostgreSQL database",
+  "source_type": "database",
+  "db_type": "postgres",
+  "db_host": "localhost",
+  "db_port": 5432,
+  "db_name": "codex",
+  "db_user": "codex",
+  "db_password": "codex_password",
+  "db_ssl_mode": "disable",
+  "db_table_name": "code_files",
+  "db_column_path": "file_path",
+  "db_column_content": "content",
+  "db_column_type": "file_type",
+  "db_column_size": "file_size",
+  "output_file": "database_output.txt",
+  "show_size": true,
+  "debug": false
+}

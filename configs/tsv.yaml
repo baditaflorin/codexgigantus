@@ -1,0 +1,11 @@
+name: TSV Source Example
+description: Example configuration for loading files from TSV (tab-separated values)
+source_type: tsv
+csv_file_path: ./data/files.tsv
+csv_delimiter: "\t"
+csv_path_column: 0
+csv_content_column: 1
+csv_has_header: true
+output_file: tsv_output.txt
+show_size: false
+debug: false
