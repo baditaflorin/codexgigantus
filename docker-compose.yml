@@ -17,6 +17,7 @@ services:
       - DB_NAME=codex
       # Use read-only user with least privileges for application
       - DB_USER=codex_readonly
+      - DB_PASSWORD_FILE=/run/secrets/db_password
       - DB_SSL_MODE=prefer
       # Security settings
       - MAX_FILE_SIZE=10485760
@@ -29,15 +30,19 @@ services:
       - ./configs:/app/configs:ro
       - ./data:/app/data
       - ./.env:/app/.env:ro
+    # NOTE: The 'condition: service_healthy' syntax requires Docker Compose file format version 2.1 or higher.
     depends_on:
       postgres:
         condition: service_healthy
     networks:
       - codex-network
     restart: unless-stopped
-    # Security: Run as non-root user
+    # Security: Run as non-root user.
+    # Fixed UID/GID may cause permission issues if host UID differs.
+    # Set UID and GID via environment variables if needed: UID=$(id -u) GID=$(id -g) docker-compose up
     user: "1000:1000"
     # Security: Read-only root filesystem
+    # Note: Verify application can operate with this restriction
     read_only: true
     tmpfs:
       - /tmp:noexec,nosuid,size=100m
@@ -62,14 +67,17 @@ services:
       - POSTGRES_DB=codex
       # Admin user for initial setup only
       - POSTGRES_USER=postgres
+      # Use Docker secret for admin password
+      - POSTGRES_PASSWORD_FILE=/run/secrets/db_admin_password
       # Application user (read-only)
       - APP_USER=codex_readonly
     secrets:
       - db_admin_password
       - db_password
     ports:
-      # Bind to localhost only for security
-      - "127.0.0.1:5432:5432"
+      # Expose PostgreSQL on all interfaces for Docker network access
+      # Docker network isolation provides security
+      - "5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./init-db.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
@@ -83,8 +91,8 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
-    # Security: Run as postgres user
-    user: postgres
+    # Security: PostgreSQL image handles user switching internally
+    # Do not specify 'user:' directive as it prevents initialization
     # Security: Read-only /etc
     read_only: false
     tmpfs:

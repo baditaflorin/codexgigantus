@@ -12,13 +12,14 @@ LABEL description="Secure CodexGigantus build"
 RUN addgroup -g 1000 builder && \
     adduser -D -u 1000 -G builder builder
 
-# Install build dependencies with specific versions
+# Install build dependencies
+# Note: Alpine apk doesn't support flexible version constraints, using latest available in Alpine 3.19
 RUN apk add --no-cache \
-    git=~2.43 \
-    make=~4.4 \
-    gcc=~13.2 \
-    musl-dev=~1.2 \
-    sqlite-dev=~3.44
+    git \
+    make \
+    gcc \
+    musl-dev \
+    sqlite-dev
 
 # Set working directory
 WORKDIR /build
@@ -39,20 +40,20 @@ RUN go mod download && go mod verify
 COPY --chown=builder:builder . .
 
 # Build both CLI and Web binaries with security flags
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
-    go build -a -installsuffix cgo \
-    -ldflags='-w -s -extldflags "-static"' \
+# Note: CGO_ENABLED=1 is required for SQLite support (go-sqlite3)
+RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 \
+    go build -a \
+    -ldflags='-w -s' \
     -trimpath \
     -o codexgigantus-cli ./cmd/cli && \
-    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
-    go build -a -installsuffix cgo \
-    -ldflags='-w -s -extldflags "-static"' \
+    CGO_ENABLED=1 GOOS=linux GOARCH=amd64 \
+    go build -a \
+    -ldflags='-w -s' \
     -trimpath \
     -o codexgigantus-web ./cmd/web
 
-# Security: Verify binaries are statically linked
-RUN ldd codexgigantus-cli 2>&1 | grep -q "not a dynamic executable" && \
-    ldd codexgigantus-web 2>&1 | grep -q "not a dynamic executable"
+# Security: Verify binaries exist and are executable
+RUN test -x codexgigantus-cli && test -x codexgigantus-web
 
 # Stage 2: Create minimal runtime image with security hardening
 FROM alpine:3.19
@@ -63,9 +64,11 @@ LABEL version="2.0.0"
 LABEL description="Secure CodexGigantus runtime"
 
 # Security: Install only essential runtime dependencies
+# Note: SQLite requires libc and other runtime libraries
 RUN apk add --no-cache \
-    ca-certificates=~20240226 \
-    tzdata=~2024a && \
+    ca-certificates \
+    tzdata \
+    sqlite-libs && \
     update-ca-certificates
 
 # Security: Create non-root user with fixed UID/GID

@@ -87,7 +87,12 @@ security-check: test-security ## Run security checks and vulnerability scan
 	@command -v govulncheck >/dev/null 2>&1 || { echo "govulncheck not installed. Run: go install golang.org/x/vuln/cmd/govulncheck@latest"; }
 	@command -v govulncheck >/dev/null 2>&1 && govulncheck ./... || echo "Skipping govulncheck (not installed)"
 	@echo "Checking for secrets in code..."
-	@! git grep -i 'password.*=.*"[^"]' -- '*.go' '*.yml' '*.yaml' || (echo "Warning: Found potential hardcoded passwords" && false)
+	@if command -v gitleaks >/dev/null 2>&1; then \
+		gitleaks detect --no-git -v --source . || (echo "Warning: Found potential secrets" && false); \
+	else \
+		echo "gitleaks not installed. Falling back to grep-based check."; \
+		! git grep -I -E -i '(password|passwd|secret|token|api[_-]?key)[[:space:]]*(:=|=)[[:space:]]*(["\x27].*["\x27]|[^[:space:]]+)' -- '*.go' '*.yml' '*.yaml' || (echo "Warning: Found potential hardcoded secrets" && false); \
+	fi
 	@echo "Security checks complete!"
 
 check-all: fmt vet lint test-all security-check ## Run all checks including security

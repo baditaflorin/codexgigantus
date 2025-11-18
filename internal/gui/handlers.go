@@ -71,6 +71,9 @@ func (s *Server) withSecurityHeaders(next http.HandlerFunc) http.HandlerFunc {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("X-XSS-Protection", "1; mode=block")
+		// Note: CSP allows 'unsafe-inline' for scripts/styles which reduces XSS protection.
+		// This is currently required for the application to function with inline scripts/styles.
+		// Consider refactoring to use nonces or hashes for better security.
 		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'")
 		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
 

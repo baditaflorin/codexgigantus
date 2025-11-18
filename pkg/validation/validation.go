@@ -126,7 +126,7 @@ func ValidateFilePath(path, fieldName string) error {
 	// Check for path traversal patterns
 	cleanPath := filepath.Clean(path)
 	for _, pattern := range pathTraversalPatterns {
-		if strings.Contains(path, pattern) && pattern != "." {
+		if strings.Contains(path, pattern) {
 			return &ValidationError{
 				Field:   fieldName,
 				Message: "contains potentially dangerous path traversal characters",
@@ -316,6 +316,7 @@ func ValidateFileExtension(ext, fieldName string) error {
 }
 
 // ValidateConfigName validates configuration profile names
+// Empty names are allowed for unnamed/default configurations
 func ValidateConfigName(name, fieldName string) error {
 	if name == "" {
 		return nil // Empty is allowed for unnamed configs
@@ -364,12 +365,12 @@ func ValidateCSVDelimiter(delimiter, fieldName string) error {
 	return nil
 }
 
-// ValidatePositiveInt validates positive integers
+// ValidatePositiveInt validates non-negative integers (zero or positive)
 func ValidatePositiveInt(value int, fieldName string) error {
 	if value < 0 {
 		return &ValidationError{
 			Field:   fieldName,
-			Message: "must be a positive integer",
+			Message: "must be zero or a positive integer",
 		}
 	}
 	return nil
