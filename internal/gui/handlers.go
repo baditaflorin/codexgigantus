@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"io"
 	"net/http"
 	"path/filepath"
 
@@ -13,6 +14,13 @@ import (
 	"github.com/baditaflorin/codexgigantus/pkg/sources/csv"
 	"github.com/baditaflorin/codexgigantus/pkg/sources/database"
 	"github.com/baditaflorin/codexgigantus/pkg/utils"
+	"github.com/baditaflorin/codexgigantus/pkg/validation"
+)
+
+const (
+	// Security: Limit request body size to prevent DoS
+	maxRequestBodySize = 10 * 1024 * 1024 // 10MB
+	maxConfigFileSize  = 1 * 1024 * 1024  // 1MB for config files
 )
 
 // Server represents the web GUI server
@@ -40,24 +48,59 @@ func NewServer() (*Server, error) {
 	}, nil
 }
 
-// Start starts the web server
+// Start starts the web server with security middleware
 func (s *Server) Start(host string, port int) error {
-	http.HandleFunc("/", s.handleIndex)
-	http.HandleFunc("/api/config", s.handleConfig)
-	http.HandleFunc("/api/config/load", s.handleLoadConfig)
-	http.HandleFunc("/api/config/save", s.handleSaveConfig)
-	http.HandleFunc("/api/process", s.handleProcess)
-	http.HandleFunc("/api/test-db", s.handleTestDB)
+	// Wrap handlers with security middleware
+	http.HandleFunc("/", s.withSecurityHeaders(s.handleIndex))
+	http.HandleFunc("/api/config", s.withSecurityHeaders(s.handleConfig))
+	http.HandleFunc("/api/config/load", s.withSecurityHeaders(s.handleLoadConfig))
+	http.HandleFunc("/api/config/save", s.withSecurityHeaders(s.handleSaveConfig))
+	http.HandleFunc("/api/process", s.withSecurityHeaders(s.handleProcess))
+	http.HandleFunc("/api/test-db", s.withSecurityHeaders(s.handleTestDB))
 
 	addr := fmt.Sprintf("%s:%d", host, port)
 	fmt.Printf("Starting web GUI on http://%s\n", addr)
+	fmt.Println("Security features enabled: request size limits, input validation, secure headers")
 	return http.ListenAndServe(addr, nil)
+}
+
+// withSecurityHeaders adds security headers to responses
+func (s *Server) withSecurityHeaders(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Security headers
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("X-XSS-Protection", "1; mode=block")
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'")
+		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+
+		// Limit request body size to prevent DoS
+		r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodySize)
+
+		next(w, r)
+	}
+}
+
+// sendError sends a secure error response without leaking details
+func sendError(w http.ResponseWriter, userMessage string, statusCode int) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+	json.NewEncoder(w).Encode(map[string]string{
+		"error": userMessage,
+	})
+}
+
+// sendSuccess sends a success response
+func sendSuccess(w http.ResponseWriter, data interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(data)
 }
 
 // handleIndex serves the main page
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	if err := s.templates.ExecuteTemplate(w, "index.html", s.config); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		// Security: Don't leak template error details
+		sendError(w, "Failed to render page", http.StatusInternalServerError)
 	}
 }
 
@@ -65,35 +108,39 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(s.config)
+		sendSuccess(w, s.config)
 
 	case http.MethodPost:
 		var config configfile.AppConfig
-		if err := json.NewDecoder(r.Body).Decode(&config); err != nil {
-			http.Error(w, fmt.Sprintf("Invalid JSON: %v", err), http.StatusBadRequest)
+
+		// Limit JSON decoding
+		decoder := json.NewDecoder(io.LimitReader(r.Body, maxRequestBodySize))
+		decoder.DisallowUnknownFields()
+
+		if err := decoder.Decode(&config); err != nil {
+			sendError(w, "Invalid configuration format", http.StatusBadRequest)
 			return
 		}
 
 		config.SetDefaults()
 		if err := config.Validate(); err != nil {
-			http.Error(w, fmt.Sprintf("Invalid configuration: %v", err), http.StatusBadRequest)
+			// Security: Validation errors are safe to return
+			sendError(w, fmt.Sprintf("Configuration validation failed: %v", err), http.StatusBadRequest)
 			return
 		}
 
 		s.config = &config
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "success"})
+		sendSuccess(w, map[string]string{"status": "success", "message": "Configuration updated"})
 
 	default:
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		sendError(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
 }
 
 // handleLoadConfig loads configuration from a file
 func (s *Server) handleLoadConfig(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		sendError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
@@ -101,31 +148,51 @@ func (s *Server) handleLoadConfig(w http.ResponseWriter, r *http.Request) {
 		FilePath string `json:"file_path"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+	decoder := json.NewDecoder(io.LimitReader(r.Body, maxRequestBodySize))
+	decoder.DisallowUnknownFields()
+
+	if err := decoder.Decode(&req); err != nil {
+		sendError(w, "Invalid request format", http.StatusBadRequest)
 		return
 	}
 
-	config, err := configfile.Load(req.FilePath)
+	// Security: Validate file path to prevent path traversal
+	if err := validation.ValidateFilePath(req.FilePath, "file_path"); err != nil {
+		sendError(w, "Invalid file path", http.StatusBadRequest)
+		return
+	}
+
+	// Security: Only allow loading from configs directory
+	cleanPath := filepath.Clean(req.FilePath)
+	if !filepath.IsAbs(cleanPath) {
+		cleanPath = filepath.Join("configs", cleanPath)
+	}
+
+	config, err := configfile.Load(cleanPath)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to load config: %v", err), http.StatusBadRequest)
+		// Security: Don't leak file system details
+		sendError(w, "Failed to load configuration file", http.StatusBadRequest)
 		return
 	}
 
 	config.SetDefaults()
-	s.config = config
+	if err := config.Validate(); err != nil {
+		sendError(w, fmt.Sprintf("Loaded configuration is invalid: %v", err), http.StatusBadRequest)
+		return
+	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"status": "success",
-		"config": config,
+	s.config = config
+	sendSuccess(w, map[string]interface{}{
+		"status":  "success",
+		"message": "Configuration loaded successfully",
+		"config":  config,
 	})
 }
 
 // handleSaveConfig saves current configuration to a file
 func (s *Server) handleSaveConfig(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		sendError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
@@ -133,27 +200,55 @@ func (s *Server) handleSaveConfig(w http.ResponseWriter, r *http.Request) {
 		FilePath string `json:"file_path"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+	decoder := json.NewDecoder(io.LimitReader(r.Body, maxRequestBodySize))
+	decoder.DisallowUnknownFields()
+
+	if err := decoder.Decode(&req); err != nil {
+		sendError(w, "Invalid request format", http.StatusBadRequest)
 		return
 	}
 
-	if err := configfile.Save(s.config, req.FilePath); err != nil {
-		http.Error(w, fmt.Sprintf("Failed to save config: %v", err), http.StatusBadRequest)
+	// Security: Validate file path to prevent path traversal
+	if err := validation.ValidateFilePath(req.FilePath, "file_path"); err != nil {
+		sendError(w, "Invalid file path", http.StatusBadRequest)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
+	// Security: Only allow saving to configs directory
+	cleanPath := filepath.Clean(req.FilePath)
+	if !filepath.IsAbs(cleanPath) {
+		cleanPath = filepath.Join("configs", cleanPath)
+	}
+
+	// Security: Validate file extension
+	ext := filepath.Ext(cleanPath)
+	if ext != ".json" && ext != ".yaml" && ext != ".yml" {
+		sendError(w, "Invalid file format (must be .json, .yaml, or .yml)", http.StatusBadRequest)
+		return
+	}
+
+	if err := configfile.Save(s.config, cleanPath); err != nil {
+		// Security: Don't leak file system details
+		sendError(w, "Failed to save configuration file", http.StatusInternalServerError)
+		return
+	}
+
+	sendSuccess(w, map[string]string{
 		"status":  "success",
-		"message": fmt.Sprintf("Configuration saved to %s", req.FilePath),
+		"message": "Configuration saved successfully",
 	})
 }
 
 // handleProcess processes files based on current configuration
 func (s *Server) handleProcess(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		sendError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Security: Validate configuration before processing
+	if err := s.config.Validate(); err != nil {
+		sendError(w, fmt.Sprintf("Invalid configuration: %v", err), http.StatusBadRequest)
 		return
 	}
 
@@ -168,12 +263,13 @@ func (s *Server) handleProcess(w http.ResponseWriter, r *http.Request) {
 	case "database":
 		results, err = s.processDatabase()
 	default:
-		http.Error(w, fmt.Sprintf("Unknown source type: %s", s.config.SourceType), http.StatusBadRequest)
+		sendError(w, "Invalid source type", http.StatusBadRequest)
 		return
 	}
 
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Processing failed: %v", err), http.StatusInternalServerError)
+		// Security: Don't leak internal error details
+		sendError(w, "Processing failed", http.StatusInternalServerError)
 		return
 	}
 
@@ -182,31 +278,44 @@ func (s *Server) handleProcess(w http.ResponseWriter, r *http.Request) {
 
 	// Save to file if configured
 	if s.config.OutputFile != "" {
+		// Security: Validate output file path
+		if err := validation.ValidateFilePath(s.config.OutputFile, "output_file"); err != nil {
+			sendError(w, "Invalid output file path", http.StatusBadRequest)
+			return
+		}
+
 		if err := utils.SaveOutput(output, s.config.OutputFile); err != nil {
-			http.Error(w, fmt.Sprintf("Failed to save output: %v", err), http.StatusInternalServerError)
+			sendError(w, "Failed to save output", http.StatusInternalServerError)
 			return
 		}
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	sendSuccess(w, map[string]interface{}{
 		"status":      "success",
 		"file_count":  len(results),
 		"output_size": len(output),
 		"output_file": s.config.OutputFile,
-		"output":      output,
+		"preview":     truncateOutput(output, 1000), // Security: Limit response size
 	})
+}
+
+// truncateOutput limits output size for API responses
+func truncateOutput(output string, maxLen int) string {
+	if len(output) <= maxLen {
+		return output
+	}
+	return output[:maxLen] + "... (truncated)"
 }
 
 // handleTestDB tests database connection
 func (s *Server) handleTestDB(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		sendError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
 	if s.config.SourceType != "database" {
-		http.Error(w, "Current configuration is not for database source", http.StatusBadRequest)
+		sendError(w, "Configuration is not set for database source", http.StatusBadRequest)
 		return
 	}
 
@@ -218,17 +327,23 @@ func (s *Server) handleTestDB(w http.ResponseWriter, r *http.Request) {
 		s.config.DBUser,
 		s.config.DBPassword,
 		s.config.DBSSLMode,
-		s.config.Debug,
+		false, // Security: Disable debug for connection test
 	)
 	dbProc.SetDefaults()
 
-	if err := dbProc.TestConnection(); err != nil {
-		http.Error(w, fmt.Sprintf("Connection failed: %v", err), http.StatusBadRequest)
+	// Security: Validate before attempting connection
+	if err := dbProc.Validate(); err != nil {
+		sendError(w, fmt.Sprintf("Invalid database configuration: %v", err), http.StatusBadRequest)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
+	if err := dbProc.TestConnection(); err != nil {
+		// Security: Don't leak connection details
+		sendError(w, "Database connection failed", http.StatusBadRequest)
+		return
+	}
+
+	sendSuccess(w, map[string]string{
 		"status":  "success",
 		"message": "Database connection successful",
 	})
