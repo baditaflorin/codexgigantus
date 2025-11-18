@@ -11,6 +11,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 
 	"github.com/baditaflorin/codexgigantus/pkg/utils"
+	"github.com/baditaflorin/codexgigantus/pkg/validation"
 )
 
 // Processor handles database operations
@@ -46,7 +47,7 @@ func NewProcessor(dbType, host string, port int, dbName, user, password, sslMode
 	}
 }
 
-// Connect establishes a database connection
+// Connect establishes a database connection with secure error handling
 func (p *Processor) Connect() error {
 	var dsn string
 	var driverName string
@@ -67,24 +68,29 @@ func (p *Processor) Connect() error {
 		dsn = p.DBName // For SQLite, DBName is the file path
 
 	default:
-		return fmt.Errorf("unsupported database type: %s", p.DBType)
+		return fmt.Errorf("unsupported database type")
 	}
 
 	if p.Debug {
-		// Mask password in debug output
-		safeDSN := strings.ReplaceAll(dsn, p.Password, "****")
-		fmt.Printf("Connecting to database: %s\n", safeDSN)
+		// Never log passwords or connection strings in production
+		fmt.Printf("Connecting to %s database at %s\n", p.DBType, p.Host)
 	}
 
 	db, err := sql.Open(driverName, dsn)
 	if err != nil {
-		return fmt.Errorf("failed to open database connection: %w", err)
+		// Don't expose internal error details
+		return fmt.Errorf("failed to establish database connection")
 	}
+
+	// Set connection pool limits for security
+	db.SetMaxOpenConns(25)
+	db.SetMaxIdleConns(5)
 
 	// Test connection
 	if err := db.Ping(); err != nil {
 		db.Close()
-		return fmt.Errorf("failed to ping database: %w", err)
+		// Don't expose internal error details
+		return fmt.Errorf("database connection test failed")
 	}
 
 	p.db = db
@@ -109,18 +115,22 @@ func (p *Processor) Close() error {
 // Process executes the query and returns file results
 func (p *Processor) Process() ([]utils.FileResult, error) {
 	if p.db == nil {
-		return nil, fmt.Errorf("database connection not established, call Connect() first")
+		return nil, fmt.Errorf("database connection not established")
 	}
 
-	query := p.buildQuery()
+	query, err := p.buildQuery()
+	if err != nil {
+		return nil, fmt.Errorf("failed to build query: %w", err)
+	}
 
 	if p.Debug {
-		fmt.Printf("Executing query: %s\n", query)
+		// Log query without sensitive data
+		fmt.Printf("Executing query on table: %s\n", p.TableName)
 	}
 
 	rows, err := p.db.Query(query)
 	if err != nil {
-		return nil, fmt.Errorf("failed to execute query: %w", err)
+		return nil, fmt.Errorf("query execution failed")
 	}
 	defer rows.Close()
 
@@ -142,7 +152,7 @@ func (p *Processor) Process() ([]utils.FileResult, error) {
 		}
 
 		if err != nil {
-			return nil, fmt.Errorf("failed to scan row: %w", err)
+			return nil, fmt.Errorf("failed to read database row")
 		}
 
 		results = append(results, utils.FileResult{
@@ -156,7 +166,7 @@ func (p *Processor) Process() ([]utils.FileResult, error) {
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating rows: %w", err)
+		return nil, fmt.Errorf("error reading database results")
 	}
 
 	if p.Debug {
@@ -166,45 +176,63 @@ func (p *Processor) Process() ([]utils.FileResult, error) {
 	return results, nil
 }
 
-// buildQuery constructs the SQL query
-func (p *Processor) buildQuery() string {
-	// Use custom query if provided
+// buildQuery constructs the SQL query with validation to prevent SQL injection
+func (p *Processor) buildQuery() (string, error) {
+	// Use custom query if provided (already validated)
 	if p.CustomQuery != "" {
-		return p.CustomQuery
+		return p.CustomQuery, nil
 	}
 
-	// Build query from table and column names
+	// Validate all SQL identifiers to prevent SQL injection
+	if err := validation.ValidateSQLIdentifier(p.TableName, "table_name"); err != nil {
+		return "", fmt.Errorf("invalid table name: %w", err)
+	}
+
+	if err := validation.ValidateSQLIdentifier(p.ColumnPath, "column_path"); err != nil {
+		return "", fmt.Errorf("invalid path column: %w", err)
+	}
+
+	if err := validation.ValidateSQLIdentifier(p.ColumnContent, "column_content"); err != nil {
+		return "", fmt.Errorf("invalid content column: %w", err)
+	}
+
+	// Build column list with validated identifiers
 	columns := []string{p.ColumnPath, p.ColumnContent}
 
 	if p.ColumnType != "" {
+		if err := validation.ValidateSQLIdentifier(p.ColumnType, "column_type"); err != nil {
+			return "", fmt.Errorf("invalid type column: %w", err)
+		}
 		columns = append(columns, p.ColumnType)
 	}
+
 	if p.ColumnSize != "" {
+		if err := validation.ValidateSQLIdentifier(p.ColumnSize, "column_size"); err != nil {
+			return "", fmt.Errorf("invalid size column: %w", err)
+		}
 		columns = append(columns, p.ColumnSize)
 	}
 
+	// Safe to use fmt.Sprintf here because all identifiers have been validated
 	return fmt.Sprintf("SELECT %s FROM %s",
 		strings.Join(columns, ", "),
-		p.TableName)
+		p.TableName), nil
 }
 
-// Validate validates the processor configuration
+// Validate validates the processor configuration with security checks
 func (p *Processor) Validate() error {
-	if p.DBType == "" {
-		return fmt.Errorf("database type is required")
+	// Validate database type
+	if err := validation.ValidateDatabaseType(p.DBType, "db_type"); err != nil {
+		return err
 	}
 
-	validTypes := map[string]bool{"postgres": true, "mysql": true, "sqlite": true}
-	if !validTypes[p.DBType] {
-		return fmt.Errorf("invalid database type: %s (must be postgres, mysql, or sqlite)", p.DBType)
-	}
-
+	// Validate host and port for non-SQLite databases
 	if p.DBType != "sqlite" {
-		if p.Host == "" {
-			return fmt.Errorf("host is required for %s", p.DBType)
+		if err := validation.ValidateHost(p.Host, "host"); err != nil {
+			return err
 		}
-		if p.Port <= 0 {
-			return fmt.Errorf("port must be > 0")
+		if err := validation.ValidatePort(p.Port, "port"); err != nil {
+			return err
 		}
 		if p.User == "" {
 			return fmt.Errorf("user is required for %s", p.DBType)
@@ -216,16 +244,33 @@ func (p *Processor) Validate() error {
 	}
 
 	// Validate query configuration
-	if p.CustomQuery == "" {
-		// If no custom query, table and columns are required
-		if p.TableName == "" {
-			return fmt.Errorf("table_name is required when custom_query is not provided")
+	if p.CustomQuery != "" {
+		// Validate custom query for SQL injection
+		if err := validation.ValidateCustomQuery(p.CustomQuery, "custom_query"); err != nil {
+			return err
 		}
-		if p.ColumnPath == "" {
-			return fmt.Errorf("column_path is required when custom_query is not provided")
+	} else {
+		// Validate table and column names
+		if err := validation.ValidateSQLIdentifier(p.TableName, "table_name"); err != nil {
+			return err
 		}
-		if p.ColumnContent == "" {
-			return fmt.Errorf("column_content is required when custom_query is not provided")
+		if err := validation.ValidateSQLIdentifier(p.ColumnPath, "column_path"); err != nil {
+			return err
+		}
+		if err := validation.ValidateSQLIdentifier(p.ColumnContent, "column_content"); err != nil {
+			return err
+		}
+
+		// Validate optional columns if provided
+		if p.ColumnType != "" {
+			if err := validation.ValidateSQLIdentifier(p.ColumnType, "column_type"); err != nil {
+				return err
+			}
+		}
+		if p.ColumnSize != "" {
+			if err := validation.ValidateSQLIdentifier(p.ColumnSize, "column_size"); err != nil {
+				return err
+			}
 		}
 	}
 

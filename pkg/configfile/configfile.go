@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v3"
+	"github.com/baditaflorin/codexgigantus/pkg/validation"
 )
 
 // AppConfig represents the application configuration that can be saved/loaded
@@ -141,10 +142,16 @@ func Load(path string) (*AppConfig, error) {
 	}
 }
 
-// Validate validates the configuration
+// Validate validates the configuration with security checks
 func (c *AppConfig) Validate() error {
-	if c.SourceType == "" {
-		return fmt.Errorf("source_type is required")
+	// Validate source type
+	if err := validation.ValidateSourceType(c.SourceType, "source_type"); err != nil {
+		return err
+	}
+
+	// Validate config name if provided
+	if err := validation.ValidateConfigName(c.Name, "name"); err != nil {
+		return err
 	}
 
 	switch c.SourceType {
@@ -152,25 +159,100 @@ func (c *AppConfig) Validate() error {
 		if len(c.Directories) == 0 {
 			return fmt.Errorf("directories are required for filesystem source")
 		}
+		// Validate each directory path
+		for i, dir := range c.Directories {
+			if err := validation.ValidateFilePath(dir, fmt.Sprintf("directories[%d]", i)); err != nil {
+				return fmt.Errorf("invalid directory path: %w", err)
+			}
+		}
+		// Validate file extensions
+		for i, ext := range c.IncludeExtensions {
+			if err := validation.ValidateFileExtension(ext, fmt.Sprintf("include_extensions[%d]", i)); err != nil {
+				return err
+			}
+		}
+		for i, ext := range c.ExcludeExtensions {
+			if err := validation.ValidateFileExtension(ext, fmt.Sprintf("exclude_extensions[%d]", i)); err != nil {
+				return err
+			}
+		}
+
 	case "csv", "tsv":
 		if c.CSVFilePath == "" {
 			return fmt.Errorf("csv_file_path is required for CSV/TSV source")
 		}
+		if err := validation.ValidateFilePath(c.CSVFilePath, "csv_file_path"); err != nil {
+			return fmt.Errorf("invalid CSV file path: %w", err)
+		}
+		// Set default delimiter
 		if c.SourceType == "csv" && c.CSVDelimiter == "" {
 			c.CSVDelimiter = ","
 		}
 		if c.SourceType == "tsv" && c.CSVDelimiter == "" {
 			c.CSVDelimiter = "\t"
 		}
+		// Validate delimiter
+		if err := validation.ValidateCSVDelimiter(c.CSVDelimiter, "csv_delimiter"); err != nil {
+			return err
+		}
+		// Validate column indices
+		if err := validation.ValidateNonNegativeInt(c.CSVPathColumn, "csv_path_column"); err != nil {
+			return err
+		}
+		if err := validation.ValidateNonNegativeInt(c.CSVContentColumn, "csv_content_column"); err != nil {
+			return err
+		}
+
 	case "database":
-		if c.DBType == "" {
-			return fmt.Errorf("db_type is required for database source")
+		// Validate database type
+		if err := validation.ValidateDatabaseType(c.DBType, "db_type"); err != nil {
+			return err
 		}
-		if c.DBTableName == "" && c.DBQuery == "" {
-			return fmt.Errorf("either db_table_name or db_query is required for database source")
+		// Validate host and port for non-SQLite databases
+		if c.DBType != "sqlite" {
+			if err := validation.ValidateHost(c.DBHost, "db_host"); err != nil {
+				return err
+			}
+			if err := validation.ValidatePort(c.DBPort, "db_port"); err != nil {
+				return err
+			}
 		}
-	default:
-		return fmt.Errorf("invalid source_type: %s (must be filesystem, csv, tsv, or database)", c.SourceType)
+		// Validate custom query or table/column names
+		if c.DBQuery != "" {
+			if err := validation.ValidateCustomQuery(c.DBQuery, "db_query"); err != nil {
+				return err
+			}
+		} else {
+			if c.DBTableName == "" {
+				return fmt.Errorf("db_table_name is required when db_query is not provided")
+			}
+			if err := validation.ValidateSQLIdentifier(c.DBTableName, "db_table_name"); err != nil {
+				return err
+			}
+			if err := validation.ValidateSQLIdentifier(c.DBColumnPath, "db_column_path"); err != nil {
+				return err
+			}
+			if err := validation.ValidateSQLIdentifier(c.DBColumnContent, "db_column_content"); err != nil {
+				return err
+			}
+			if c.DBColumnType != "" {
+				if err := validation.ValidateSQLIdentifier(c.DBColumnType, "db_column_type"); err != nil {
+					return err
+				}
+			}
+			if c.DBColumnSize != "" {
+				if err := validation.ValidateSQLIdentifier(c.DBColumnSize, "db_column_size"); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	// Validate output file path if provided
+	if c.OutputFile != "" {
+		if err := validation.ValidateFilePath(c.OutputFile, "output_file"); err != nil {
+			return fmt.Errorf("invalid output file path: %w", err)
+		}
 	}
 
 	return nil
