@@ -1,5 +1,7 @@
 -- Security initialization script for CodexGigantus
 -- This script creates least-privilege database users
+-- NOTE: This script requires psql for \set commands. It is compatible with
+-- the postgres Docker image which uses psql for initialization scripts.
 
 -- Read the passwords from Docker secrets
 \set admin_password `cat /run/secrets/db_admin_password 2>/dev/null || echo 'changeme_admin'`
