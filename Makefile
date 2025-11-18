@@ -1,4 +1,4 @@
-.PHONY: help build build-cli build-web test clean run-cli run-web docker-build docker-up docker-down install deps lint fmt vet
+.PHONY: help build build-cli build-web test clean run-cli run-web docker-build docker-up docker-down install deps lint fmt vet security
 
 # Variables
 APP_NAME=codexgigantus
@@ -7,6 +7,7 @@ WEB_BINARY=$(APP_NAME)-web
 DOCKER_IMAGE=$(APP_NAME)
 GO=go
 GOFLAGS=-v
+SECRETS_DIR=.secrets
 
 # Default target
 help: ## Show this help message
@@ -53,6 +54,17 @@ test-race: ## Run tests with race detector
 	@echo "Running tests with race detector..."
 	$(GO) test -v -race ./...
 
+test-security: ## Run security tests
+	@echo "Running security tests..."
+	$(GO) test -v ./pkg/validation/... -run "Security|SQL|Path|Command|Malformed|XSS|LDAP"
+	$(GO) test -v ./pkg/sources/database/... -run "Integration|Malicious"
+
+test-integration: ## Run integration tests
+	@echo "Running integration tests..."
+	$(GO) test -v ./pkg/sources/database/... -run "Integration|ConnectionFailure"
+
+test-all: test test-security test-integration ## Run all tests including security and integration
+
 # Code quality targets
 lint: ## Run linter
 	@echo "Running golangci-lint..."
@@ -68,6 +80,17 @@ vet: ## Run go vet
 	$(GO) vet ./...
 
 check: fmt vet lint test ## Run all checks (fmt, vet, lint, test)
+
+security-check: test-security ## Run security checks and vulnerability scan
+	@echo "Running security checks..."
+	@echo "Checking for known vulnerabilities..."
+	@command -v govulncheck >/dev/null 2>&1 || { echo "govulncheck not installed. Run: go install golang.org/x/vuln/cmd/govulncheck@latest"; }
+	@command -v govulncheck >/dev/null 2>&1 && govulncheck ./... || echo "Skipping govulncheck (not installed)"
+	@echo "Checking for secrets in code..."
+	@! git grep -i 'password.*=.*"[^"]' -- '*.go' '*.yml' '*.yaml' || (echo "Warning: Found potential hardcoded passwords" && false)
+	@echo "Security checks complete!"
+
+check-all: fmt vet lint test-all security-check ## Run all checks including security
 
 # Dependency management
 deps: ## Download dependencies
@@ -103,6 +126,18 @@ docker-clean: ## Remove Docker image and containers
 	@echo "Cleaning Docker resources..."
 	docker-compose down -v
 	docker rmi $(DOCKER_IMAGE):latest || true
+
+docker-setup: ## Setup Docker secrets and initialize environment
+	@echo "Setting up Docker environment..."
+	@if [ ! -f ".env" ]; then \
+		cp .env.example .env; \
+		echo "Created .env from .env.example"; \
+	fi
+	@chmod +x setup-secrets.sh
+	@./setup-secrets.sh
+	@echo "Docker setup complete!"
+
+docker-up-secure: docker-setup docker-up ## Setup secrets and start services securely
 
 # Installation targets
 install: build ## Install binaries to GOPATH/bin
@@ -167,6 +202,25 @@ release: clean check build ## Prepare for release
 version: ## Show version information
 	@echo "Go version: $(shell $(GO) version)"
 	@echo "App version: $(shell git describe --tags --always --dirty 2>/dev/null || echo 'dev')"
+
+# Security targets
+setup-secrets: ## Setup Docker secrets for secure deployment
+	@echo "Setting up secrets..."
+	@chmod +x setup-secrets.sh
+	@./setup-secrets.sh
+
+verify-secrets: ## Verify that required secrets exist
+	@echo "Verifying secrets..."
+	@test -d $(SECRETS_DIR) || (echo "Error: $(SECRETS_DIR) directory not found. Run 'make setup-secrets'" && exit 1)
+	@test -f $(SECRETS_DIR)/db_admin_password || (echo "Error: db_admin_password not found" && exit 1)
+	@test -f $(SECRETS_DIR)/db_password || (echo "Error: db_password not found" && exit 1)
+	@echo "All required secrets found!"
+
+clean-secrets: ## Remove secrets (WARNING: cannot be undone)
+	@echo "WARNING: This will delete all secrets!"
+	@read -p "Are you sure? (y/N): " confirm && [ "$$confirm" = "y" ] || (echo "Cancelled" && exit 1)
+	@rm -rf $(SECRETS_DIR)
+	@echo "Secrets removed"
 
 # Quick shortcuts
 .PHONY: b r t c
