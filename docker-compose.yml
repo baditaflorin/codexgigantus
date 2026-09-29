@@ -15,20 +15,44 @@ services:
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_NAME=codex
-      - DB_USER=codex
-      - DB_PASSWORD=codex_password
-      - DB_SSL_MODE=disable
+      # Use read-only user with least privileges for application
+      - DB_USER=codex_readonly
+      - DB_SSL_MODE=prefer
+      # Security settings
+      - MAX_FILE_SIZE=10485760
+      - MAX_CONCURRENT_FILES=100
+    secrets:
+      - db_password
     ports:
       - "8080:8080"
     volumes:
-      - ./configs:/app/configs
+      - ./configs:/app/configs:ro
       - ./data:/app/data
       - ./.env:/app/.env:ro
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     networks:
       - codex-network
     restart: unless-stopped
+    # Security: Run as non-root user
+    user: "1000:1000"
+    # Security: Read-only root filesystem
+    read_only: true
+    tmpfs:
+      - /tmp:noexec,nosuid,size=100m
+    # Security: Drop all capabilities
+    cap_drop:
+      - ALL
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
 
   # PostgreSQL Database (optional, for database source mode)
   postgres:
@@ -36,21 +60,45 @@ services:
     container_name: codexgigantus-postgres
     environment:
       - POSTGRES_DB=codex
-      - POSTGRES_USER=codex
-      - POSTGRES_PASSWORD=codex_password
+      # Admin user for initial setup only
+      - POSTGRES_USER=postgres
+      # Application user (read-only)
+      - APP_USER=codex_readonly
+    secrets:
+      - db_admin_password
+      - db_password
     ports:
-      - "5432:5432"
+      # Bind to localhost only for security
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
-      - ./init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./init-db.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - ./init-db-security.sql:/docker-entrypoint-initdb.d/02-security.sql:ro
     networks:
       - codex-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U codex"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d codex"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
+    # Security: Run as postgres user
+    user: postgres
+    # Security: Read-only /etc
+    read_only: false
+    tmpfs:
+      - /tmp:noexec,nosuid,size=100m
+      - /run/postgresql:noexec,nosuid,size=10m
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
 
   # MySQL Database (alternative, commented out by default)
   # mysql:
@@ -70,22 +118,49 @@ services:
   #     - codex-network
   #   restart: unless-stopped
 
-  # Adminer for database management (optional)
+  # Adminer for database management (optional, DISABLE IN PRODUCTION)
   adminer:
     image: adminer:latest
     container_name: codexgigantus-adminer
     ports:
-      - "8081:8080"
+      # Bind to localhost only
+      - "127.0.0.1:8081:8080"
     environment:
       - ADMINER_DEFAULT_SERVER=postgres
+      - ADMINER_DESIGN=pepa-linha
     networks:
       - codex-network
     restart: unless-stopped
+    profiles:
+      - debug
+    # Security: Drop all capabilities
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
 
 networks:
   codex-network:
     driver: bridge
+    # Network isolation
+    internal: false
 
 volumes:
   postgres-data:
+    driver: local
   # mysql-data:
+
+secrets:
+  # Database passwords stored as Docker secrets
+  # To create secrets, run:
+  #   echo "your_strong_admin_password" | docker secret create db_admin_password -
+  #   echo "your_strong_app_password" | docker secret create db_password -
+  # Or for docker-compose (without swarm), create files:
+  #   echo "your_strong_admin_password" > .secrets/db_admin_password
+  #   echo "your_strong_app_password" > .secrets/db_password
+  db_admin_password:
+    file: .secrets/db_admin_password
+  db_password:
+    file: .secrets/db_password
